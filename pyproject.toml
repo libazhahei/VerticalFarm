@@ -49,8 +49,8 @@ lint.select = [
 lint.ignore = [
     "D100", # Missing docstring in public module
     "D104", # Missing docstring in public package
-
     "D105", # Missing docstring in public method (如果不需要所有方法都有)
+    "D106", # Missing docstring in public nested class
     "D107", # Missing docstring in __init__
     "D205", # 1 blank line required between summary line and description
     "D212", # Multi-line docstring summary should start at the first line
@@ -58,12 +58,15 @@ lint.ignore = [
     "D401", # First line should be in imperative mood 
     "D203", # 1 blank line required before class docstring 
     "D213", # Multi-line docstring summary should start on the same line as the opening quotes 
+    "D413", # Missing blank line after last section
     "E501", # Line too long (让 Black 或 Ruff 格式化工具处理)
     "W291", # Trailing whitespace 
     "RUF006", # Store a reference to the return value
     "B904", # Within an `except` clause, raise exceptions with `raise ... from err`
     "ANN204", # Missing return type annotation for special method `__init__`
     "ANN401", # Dynamically typed expressions are disallowed 
+    "C901", # Function is too complex 
+    "RUF012", # Unused variable
     # 如果你不想强制所有函数都带类型注解，可以忽略 ANN001, ANN201, ANN202 等
     # "ANN001", # Missing type annotation for function argument
     # "ANN201", # Missing return type annotation for public function

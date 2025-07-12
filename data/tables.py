@@ -1,15 +1,16 @@
 import asyncio
-from datetime import datetime
-from typing import List, Optional
+
+from aiorwlock import RWLock
 from tortoise import fields
 from tortoise.models import Model
-from aiorwlock import RWLock
+
 from .config import BATCH_SIZE, BATCH_TIMEOUT_MS
+
 
 class BoardData(Model): 
     """
     Represents the data associated with a board in the system.
-    
+
     Attributes:
         id (int): Unique identifier for the board data.
         board_id (int): Identifier for the board.
@@ -32,34 +33,121 @@ class BoardData(Model):
         unique_together = (("board_id", "timestamp"),)
 
 class BatchWriter:
-   
-    def __init__(self, batch_size=BATCH_SIZE, timeout=BATCH_TIMEOUT_MS):
+    """
+    A class to handle batch writing of BoardData objects to the database.
+    This class uses a buffer to collect data and writes it in batches to optimize database operations.
+    """
+
+    batch_size: int
+    buffer: list[BoardData]
+    timeout: float
+    lock: RWLock
+    _flush_worker: asyncio.Task | None
+    _stop_event: asyncio.Event
+
+    def __init__(self, batch_size: int = BATCH_SIZE, timeout: int = BATCH_TIMEOUT_MS) -> None:
+        """
+        Initializes the instance with specified batch size and timeout values.
+
+        Args:
+            batch_size (int, optional): The size of the batch for processing. Defaults to BATCH_SIZE.
+            timeout (int, optional): The timeout value in milliseconds for batch processing. Defaults to BATCH_TIMEOUT_MS.
+
+        Attributes:
+            batch_size (int): The size of the batch for processing.
+            buffer (List[BoardData]): A list to store buffered data.
+            timeout (float): The timeout value converted to seconds.
+            lock (RWLock): A read-write lock for thread-safe operations.
+            _flush_worker (Optional[asyncio.Task]): A background task for flushing data, if any.
+            _stop_event (asyncio.Event): An asyncio event used to signal stopping of the flush worker.
+
+        """
         self.batch_size = batch_size
-        self.buffer: List[BoardData] = []
+        self.buffer: list[BoardData] = []
         self.timeout = timeout / 1000  # milliseconds to seconds
         self.lock = RWLock()
-        self._flush_worker: Optional[asyncio.Task] = None
+        self._flush_worker: asyncio.Task | None = None
         self._stop_event = asyncio.Event()
 
-    async def start(self):
+    async def start(self) -> None:
+        """
+        Starts the asynchronous flush loop by clearing the stop event and 
+        creating a new asyncio task for the flush loop.
+
+        This method initializes the `_flush_worker` task, which runs the 
+        `_flush_loop` coroutine, ensuring that the flush operation begins.
+
+        Note:
+            This method should be called to start the flush loop process.
+
+        """
         self._stop_event.clear()
         self._flush_worker = asyncio.create_task(self._flush_loop())
 
-    async def stop(self):
+    async def stop(self) -> None:
+        """
+        Stops the current operation by setting the stop event and ensuring all pending tasks are completed.
+
+        This method performs the following actions:
+        1. Sets the `_stop_event` to signal that the operation should stop.
+        2. Awaits the completion of the `_flush_worker` task if it exists.
+        3. Calls the `flush` method to ensure all remaining data is processed.
+
+        This is an asynchronous method and should be awaited.
+
+        Raises:
+            Any exceptions raised during the execution of `_flush_worker` or `flush`.
+
+        """
         self._stop_event.set()
         if self._flush_worker:
             await self._flush_worker
         await self.flush()  
-        
 
-    async def _flush_loop(self):
+
+    async def _flush_loop(self) -> None:
+        """
+        An asynchronous loop that periodically checks the buffer and flushes its contents 
+        if certain conditions are met. The loop runs until the `_stop_event` is set.
+
+        This method performs the following actions:
+        1. Waits for a specified timeout duration.
+        2. Checks if the buffer size is less than one-third of the batch size.
+           If true, it skips the flush operation and continues the loop.
+        3. Calls the `flush` method to process the buffer when the condition is met.
+
+        Attributes:
+            timeout (float): The time interval (in seconds) between each iteration of the loop.
+            buffer (list): The buffer containing data to be flushed.
+            batch_size (int): The size of the batch used to determine when to flush the buffer.
+            _stop_event (asyncio.Event): An event used to signal the loop to stop execution.
+
+        Raises:
+            asyncio.CancelledError: If the coroutine is cancelled during execution.
+
+        """
         while not self._stop_event.is_set():
             await asyncio.sleep(self.timeout)
             if len(self.buffer) < (self.batch_size / 3):
                 continue
             await self.flush()
 
-    async def add(self, data: BoardData):
+    async def add(self, data: BoardData) -> None:
+        """
+        Adds a new BoardData object to the buffer and flushes the buffer if it reaches the batch size.
+
+        Args:
+            data (BoardData): The data object to be added to the buffer.
+
+        Behavior:
+            - Acquires a writer lock to ensure thread-safe access to the buffer.
+            - Appends the provided data to the buffer.
+            - If the buffer size reaches or exceeds the batch size, triggers a flush operation.
+
+        Note:
+            This method is asynchronous and should be awaited.
+
+        """
         should_flush = False
 
         async with self.lock.writer_lock:
@@ -70,7 +158,20 @@ class BatchWriter:
         if should_flush:
             await self.flush()
 
-    async def flush(self):
+    async def flush(self) -> None:
+        """
+        Asynchronously flushes the buffered data to the database.
+
+        This method transfers the contents of the buffer to the database using
+        the `BoardData.bulk_create` method. It ensures thread-safe access to the
+        buffer by utilizing a writer lock. If the buffer is empty, the method
+        returns immediately without performing any operation.
+
+        Raises:
+            Exception: If an error occurs during the bulk creation of data, 
+                       the exception is caught and logged with an error message.
+
+        """
         data_to_write = []
 
         async with self.lock.writer_lock:
@@ -83,12 +184,31 @@ class BatchWriter:
         except Exception as e:
             print(f"Flush failed: {e}")
 
-    async def fetch(self) -> List[BoardData]:
+    async def fetch(self) -> list[BoardData]:
+        """
+        Asynchronously fetches the current data stored in the buffer.
+
+        This method acquires a reader lock to ensure thread-safe access to the buffer
+        and returns a list of BoardData objects.
+
+        Returns:
+            List[BoardData]: A list containing the current data from the buffer.
+
+        """
         async with self.lock.reader_lock:
             return list(self.buffer)
-        
-    async def clear(self):
+
+    async def clear(self) -> None:
+        """
+        Clears the buffer by removing all its contents.
+
+        This method acquires a writer lock to ensure thread-safe access
+        to the buffer during the clearing operation.
+
+        Returns:
+            None
+
+        """
         async with self.lock.writer_lock:
             self.buffer.clear()
-    
-    
+

@@ -6,12 +6,12 @@ from gateway.service import BLEServiceContext
 
 
 async def main() -> None:
-    """Main function to demonstrate the usage of MQTTServiceContext."""
+    """Main function to demonstrate the usage of MQTTServiceContext and BLEServiceContext."""
     mqtt_service_context = MQTTServiceContext(borker_host="localhost", broker_port=1883, client_id="test_client")
     await mqtt_service_context.start()
     ble_service_context = BLEServiceContext([1, 2, 3])
     await ble_service_context.start()
-    
+
     try:
         alive_devices = await mqtt_service_context.alive_devices()
         print(f"Alive devices: {alive_devices}")
@@ -27,7 +27,7 @@ async def main() -> None:
     finally:
         await mqtt_service_context.stop()
         await ble_service_context.stop()
-    
+
 
 if __name__ == "__main__":
     asyncio.run(main())
