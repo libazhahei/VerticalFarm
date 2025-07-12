@@ -209,3 +209,7 @@ __marimo__/
 
 # VSCode Dev Containers
 .vscode 
+
+# Linter Cache 
+.ruff_cache/
+
