@@ -1,10 +1,10 @@
 import asyncio
 import pytest
-from unittest.mock import MagicMock, patch, AsyncMock, call
+from unittest.mock import MagicMock, AsyncMock
 import sys
 import types
 import builtins
-from .msg import ControlMsg, HeartbeatMsg, StatusMsg, Mode, Status
+from .msg import ControlMsg, HeartbeatMsg, StatusMsg, Status
 from .publisher import ControlCommandPublisher
 from .service import MqttClientWrapper, MQTTServiceContext
 

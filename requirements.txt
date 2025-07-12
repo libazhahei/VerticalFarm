@@ -1,3 +1,2 @@
 paho-mqtt==2.1.0
 aiorwlock==1.5.0
-pytest==8.4.1
