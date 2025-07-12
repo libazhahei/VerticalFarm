@@ -38,6 +38,7 @@ DEVICE_PREFIX = "CropWaifu-Board-"
 RECONNECTION_DELAY_SECONDS = 5
 
 
+
 def get_service_uuid(board_id: int) -> str:
     """Generates a service UUID based on the board ID."""
     if not (DEVICE_MIN_ID <= board_id <= DEVICE_MAX_ID):

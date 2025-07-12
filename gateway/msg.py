@@ -243,14 +243,17 @@ class HeartbeatMsg(MQTTMessageType):
 class SensorDataMsg(BLEMessageType):
     board_id: int
     temperature: float 
+    humidity: float
     light_intensity: int 
     fans: int 
         
-    def __init__(self, board_id: int, temperature: float = 0.0, light_intensity: int = 0, fans: int = 0):
+    def __init__(self, board_id: int, temperature: float = 0.0, light_intensity: int = 0, fans: int = 0, 
+                 humidity: float = 0.0):
         self.board_id = board_id
         self.temperature = temperature
         self.light_intensity = light_intensity
         self.fans = fans
+        self.humidity = humidity
 
     def __post_init__(self):
         if not (0 <= self.board_id <= 6):
@@ -262,7 +265,7 @@ class SensorDataMsg(BLEMessageType):
         if not (0 <= self.fans <= 65535):
             raise ValueError(f"Fans value must be between 0 and 65535, got {self.fans}.")
     
-    def to_byte_array(self) -> bytes:
+    def to_byte_array(self) -> bytearray:
         byte_array = bytearray(20)
         byte_array[0] = self.board_id
         temp = int(self.temperature * 100)
@@ -272,9 +275,11 @@ class SensorDataMsg(BLEMessageType):
         byte_array[4] = (self.light_intensity >> 8) & 0xFF
         byte_array[5] = self.fans & 0xFF
         byte_array[6] = (self.fans >> 8) & 0xFF
-        for i in range(7, 20):
+        byte_array[7] = int(self.humidity * 100) & 0xFF
+        byte_array[8] = (int(self.humidity * 100) >> 8) & 0xFF
+        for i in range(9, 20):
             byte_array[i] = 0
-        return bytes(byte_array)
+        return byte_array
 
     @classmethod
     def from_byte_array(cls, byte_array: bytearray) -> 'SensorDataMsg':
@@ -282,11 +287,13 @@ class SensorDataMsg(BLEMessageType):
         temperature = int.from_bytes(byte_array[1:3], byteorder='little', signed=True) / 100.0
         light_intensity = int.from_bytes(byte_array[3:5], byteorder='little', signed=False)
         fans = int.from_bytes(byte_array[5:7], byteorder='little', signed=False)
+        humidity = int.from_bytes(byte_array[7:9], byteorder='little', signed=False) / 100.0
         return cls(
             board_id=board_id,
             temperature=temperature,
             light_intensity=light_intensity,
-            fans=fans
+            fans=fans,
+            humidity=humidity
         )
 
         

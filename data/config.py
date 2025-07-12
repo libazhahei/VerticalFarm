@@ -1,5 +1,9 @@
 import os
+
 from tortoise import Tortoise, run_async
+
+BATCH_SIZE = 60
+BATCH_TIMEOUT_MS = 500  # 2 seconds
 
 async def init_schema():
     """
@@ -13,4 +17,3 @@ async def init_schema():
         modules={'models': ['data.tables']}
     ))
     await Tortoise.generate_schemas()
-    
