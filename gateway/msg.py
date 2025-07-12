@@ -4,6 +4,7 @@ import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 
 class IDGenerator:
@@ -14,8 +15,11 @@ class IDGenerator:
     def next_id(cls):
         with cls._lock:
             return next(cls._counter)
-
+        
 class MessageType(ABC):
+    pass 
+
+class MQTTMessageType(MessageType):
 
     @abstractmethod
     def get_message_id(self) -> int:
@@ -42,6 +46,20 @@ class MessageType(ABC):
     def from_json(cls, json_str: str) :
         data = json.loads(json_str)
         return cls.from_dict(data)
+    
+class BLEMessageType(MessageType):
+
+    @classmethod
+    @abstractmethod
+    def from_byte_array(cls, byte_array: bytes):
+        """Parse a byte array into the message type."""
+        pass
+
+    @abstractmethod
+    def to_byte_array(self) -> bytes:
+        """Convert the message type to a byte array."""
+        pass
+
 
 # Define a enum for mode: which is abs or relative
 class Mode:
@@ -54,7 +72,7 @@ class Status:
     WARNING: int = 2
 
 @dataclass
-class ControlMsg(MessageType):
+class ControlMsg(MQTTMessageType):
     """Control message for the fans and LED.
     """
 
@@ -153,7 +171,7 @@ class ControlMsg(MessageType):
                 f"timestamp={self.timestamp})")
 
 @dataclass
-class StatusMsg(MessageType):
+class StatusMsg(MQTTMessageType):
     """Response message from the board.
     """
 
@@ -167,6 +185,7 @@ class StatusMsg(MessageType):
         self.status = status
         self.message_id = message_id
         self.timestamp = timestamp
+
 
     def __post_init__(self):
         if not (0 <= self.board_id <= 6):
@@ -199,7 +218,7 @@ class StatusMsg(MessageType):
     def parse_json(self, json_str: str):
         return super().parse_json(json_str)
 @dataclass
-class HeartbeatMsg(MessageType):
+class HeartbeatMsg(MQTTMessageType):
     board_id: int
     seq_no: int
 
@@ -219,3 +238,56 @@ class HeartbeatMsg(MessageType):
 
     def get_message_id(self) -> int:
         return self.seq_no
+
+@dataclass 
+class SensorDataMsg(BLEMessageType):
+    board_id: int
+    temperature: float 
+    light_intensity: int 
+    fans: int 
+        
+    def __init__(self, board_id: int, temperature: float = 0.0, light_intensity: int = 0, fans: int = 0):
+        self.board_id = board_id
+        self.temperature = temperature
+        self.light_intensity = light_intensity
+        self.fans = fans
+
+    def __post_init__(self):
+        if not (0 <= self.board_id <= 6):
+            raise ValueError(f"Board ID must be between 0 and 6, got {self.board_id}.")
+        if not (0 <= self.temperature <= 100):
+            raise ValueError(f"Temperature must be between 0 and 100, got {self.temperature}.")
+        if not (0 <= self.light_intensity <= 65535):
+            raise ValueError(f"Light intensity must be between 0 and 65535, got {self.light_intensity}.")
+        if not (0 <= self.fans <= 65535):
+            raise ValueError(f"Fans value must be between 0 and 65535, got {self.fans}.")
+    
+    def to_byte_array(self) -> bytes:
+        byte_array = bytearray(20)
+        byte_array[0] = self.board_id
+        temp = int(self.temperature * 100)
+        byte_array[1] = temp & 0xFF
+        byte_array[2] = (temp >> 8) & 0xFF
+        byte_array[3] = self.light_intensity & 0xFF
+        byte_array[4] = (self.light_intensity >> 8) & 0xFF
+        byte_array[5] = self.fans & 0xFF
+        byte_array[6] = (self.fans >> 8) & 0xFF
+        for i in range(7, 20):
+            byte_array[i] = 0
+        return bytes(byte_array)
+
+    @classmethod
+    def from_byte_array(cls, byte_array: bytearray) -> 'SensorDataMsg':
+        board_id = byte_array[0]
+        temperature = int.from_bytes(byte_array[1:3], byteorder='little', signed=True) / 100.0
+        light_intensity = int.from_bytes(byte_array[3:5], byteorder='little', signed=False)
+        fans = int.from_bytes(byte_array[5:7], byteorder='little', signed=False)
+        return cls(
+            board_id=board_id,
+            temperature=temperature,
+            light_intensity=light_intensity,
+            fans=fans
+        )
+
+        
+
