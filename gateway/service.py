@@ -1,18 +1,31 @@
 import asyncio
+from datetime import datetime
+from operator import is_
 import threading
 from collections.abc import Callable
-from typing import Any, List, Optional, Set, Dict
-from bleak import BleakClient, BleakScanner
-from bleak.backends.device import BLEDevice
-from bleak.backends.characteristic import BleakGATTCharacteristic
-from bleak.exc import BleakError
+from typing import Any, List, Optional
 
+from bleak import BleakClient, BleakScanner
+from bleak.backends.characteristic import BleakGATTCharacteristic
+from bleak.backends.device import BLEDevice
+from bleak.exc import BleakError
 from paho.mqtt.client import Client, MQTTMessage
 
-from .constants import DEVICE_MAX_ID, DEVICE_MIN_ID, DEVICE_PREFIX, EXPOLATION_RETRY_DELAY_SECONDS, MAX_EXPLORATION_TRIES, MAX_EXPOLATION_TIMEOUT_SECONDS, RECONNECTION_DELAY_SECONDS, SUBSCRIBE_CTRL_MSG_TOPIC, SUBSCRIBE_HEARTBEAT_TOPIC, get_characteristic_uuid
-from .msg import BLEMessageType, ControlMsg, HeartbeatMsg, MQTTMessageType, StatusMsg
+from data.tables import BatchWriter, BoardData
+
+from .constants import (
+    DEVICE_PREFIX,
+    EXPOLATION_RETRY_DELAY_SECONDS,
+    MAX_EXPLORATION_TRIES,
+    MAX_EXPOLATION_TIMEOUT_SECONDS,
+    RECONNECTION_DELAY_SECONDS,
+    SUBSCRIBE_CTRL_MSG_TOPIC,
+    SUBSCRIBE_HEARTBEAT_TOPIC,
+    get_characteristic_uuid,
+)
+from .msg import BLEMessageType, ControlMsg, HeartbeatMsg, MQTTMessageType, SensorDataMsg, StatusMsg
 from .publisher import ControlCommandPublisher
-from .subscriber import CommandResponseSubscriber, HeartbeatSubscriber, MessageDispatcher
+from .subscriber import BLESubscriber, CommandResponseSubscriber, HeartbeatSubscriber, MessageDispatcher, SensorDataSubscriber
 
 
 class MqttClientWrapper:
@@ -434,15 +447,15 @@ class MQTTServiceContext:
 
 
 class BLEClientWrapper:
-    
-    dispatcher: MessageDispatcher
-    device_id_lists: Set[int] 
-    ble_clients: Dict[int, BleakClient]
-    is_running: bool
-    ble_devices: Dict[int, BLEDevice]
-    connection_tasks: Dict[int, asyncio.Task]
 
-    def __init__(self, device_id_lists: List[int], dispatcher: MessageDispatcher) -> None:
+    dispatcher: MessageDispatcher
+    device_id_lists: set[int] 
+    ble_clients: dict[int, BleakClient]
+    is_running: bool
+    ble_devices: dict[int, BLEDevice]
+    connection_tasks: dict[int, asyncio.Task]
+
+    def __init__(self, device_id_lists: list[int], dispatcher: MessageDispatcher) -> None:
         self.device_id_lists = set(device_id_lists)
         self.dispatcher = dispatcher
         self.ble_clients = {}
@@ -452,7 +465,7 @@ class BLEClientWrapper:
         self._characteristic_parsers = {}
         self.connection_tasks = {}
 
-    def register_notification_handler(self, board_id: int, handler: Callable[[bytes], None]) -> None:
+    def register_notification_handler(self, board_id: int, handler: Callable[[bytearray], BLEMessageType]) -> None:
         self._characteristic_parsers[board_id] = handler
 
     async def on_ble_notification(self, characteristic: BleakGATTCharacteristic , data: bytearray):
@@ -461,7 +474,7 @@ class BLEClientWrapper:
         parser_func = self._characteristic_parsers.get(char_uuid)
         if parser_func:
             try:
-                internal_msg = parser_func(bytes(data))
+                internal_msg = parser_func(data)
                 await self.dispatcher.put_message(internal_msg)
             except Exception as e:
                 print(f"BLE: Error parsing or dispatching BLE notification for {char_uuid} (data: {data.hex()}): {e}")
@@ -469,7 +482,7 @@ class BLEClientWrapper:
             print(f"BLE: No parser registered for characteristic: {char_uuid}")
 
     async def connect_and_subscribe(self, board_id: int, device: BLEDevice):
-        client: Optional[BleakClient] = None
+        client: BleakClient | None = None
         while self.is_running:
             try:
                 if client is None:
@@ -480,7 +493,7 @@ class BLEClientWrapper:
                     print(f"BLE: Connecting to device {device.name} (ID: {board_id})...")
                     await client.connect()
                     print(f"BLE: Connected to device {device.name} (ID: {board_id}).")
-                    
+
                     for board_id in self._characteristic_parsers.keys():
                         try:
                             char_uuid = get_characteristic_uuid(board_id)
@@ -508,7 +521,7 @@ class BLEClientWrapper:
             print(f"BLE: Disconnecting client for {device.name} (ID: {board_id}) during shutdown.")
             await client.disconnect()
         print(f"BLE: Connection task for {device.name} (ID: {board_id}) finished.")
-        
+
     async def start(self) -> None:
         if self.is_running:
             print("BLE: Already running, cannot start again.")
@@ -563,8 +576,109 @@ class BLEClientWrapper:
         self.connection_tasks.clear()
         print("BLE: All BLE clients stopped.")
 
-    
+    def is_connected(self) -> bool:
+        """
+        Check if any BLE client is currently connected.
 
+        Returns:
+            bool: True if at least one BLE client is connected, False otherwise.
+
+        """
+        return any(client.is_connected for client in self.ble_clients.values())
+
+class BLEServiceContext:
+    ble_sub: SensorDataSubscriber
+    msg_dispatcher: MessageDispatcher
+    ble_client: BLEClientWrapper
+    is_running: bool
+    _asyncio_loop: asyncio.AbstractEventLoop | None
+    batch_writer: BatchWriter
+
+    def __init__(self, device_id_list: List[int] ) -> None:
+        self.msg_dispatcher = MessageDispatcher()
+        self.batch_writer = BatchWriter()
+        self.ble_sub = SensorDataSubscriber(self.batch_writer)
+        self.ble_client = BLEClientWrapper(
+            device_id_lists=device_id_list,
+            dispatcher=self.msg_dispatcher
+        )
+        self.msg_dispatcher.register_handler(
+            MQTTMessageType, self.ble_sub.handle
+        )
+        for device_id in device_id_list:
+            self.ble_client.register_notification_handler(
+                device_id, self.ble_sub.parse_bytes
+            )
+        self._asyncio_loop = None
+        self.is_running = False
         
 
+    async def start(self) -> None:
+
+        if self.is_running:
+            print("BLE Service Context: Already running, cannot start again.")
+            return
+        self._asyncio_loop = asyncio.get_running_loop()
+        self.is_running = True
+        print("BLE Service Context: Starting BLE clients...")
+        await self.batch_writer.start()
+        await self.msg_dispatcher.start()
+        await self.ble_client.start()
+        print("BLE Service Context started.")
+
+    async def stop(self) -> None:
+        if not self.is_running:
+            print("BLE Service Context: Not running, cannot stop.")
+            return
+        self.is_running = False
+        print("BLE Service Context: Stopping BLE clients...")
+        await self.batch_writer.stop()
+        await self.msg_dispatcher.stop()
+        await self.ble_client.stop()
+        print("BLE Service Context stopped.")
+
+    def is_connected(self) -> bool:
+        """
+        Check if the BLE client is currently connected.
+
+        Returns:
+            bool: True if the BLE client is connected, False otherwise.
+
+        """
+        return self.ble_client.is_connected()
+    def connected_devices(self) -> List[int]:
+        """
+        Asynchronously retrieves a list of IDs for devices that are currently connected.
+
+        Returns:
+            List[int]: A list of integers representing the IDs of devices that are connected.
+
+        """
+        return list(self.ble_client.ble_devices.keys())
     
+    async def fetch_data(self, since: datetime, board_ids: Optional[List[int]]) -> List[BoardData]:
+        """
+        Fetches all data since a timestamp, optionally filtered by board_ids.
+
+        Args:
+            since (datetime): The earliest timestamp.
+            board_ids (Optional[List[int]]): List of board_ids to filter by.
+
+        Returns:
+            List[BoardData]: Sorted (descending) BoardData list.
+        """
+        db_query = BoardData.filter(timestamp__gte=since)
+        if board_ids:
+            db_query = db_query.filter(board_id__in=board_ids)
+
+        db_data = await db_query.order_by("-timestamp").all()
+
+        buf_data = await self.batch_writer.fetch()
+        filtered_buf_data = [
+            data for data in buf_data
+            if data.timestamp >= since and (not board_ids or data.board_id in board_ids)
+        ]
+        filtered_buf_data.sort(key=lambda x: x.timestamp, reverse=True)
+        return db_data + filtered_buf_data
+    
+
