@@ -320,6 +320,7 @@ class MQTTServiceContext:
         Raises:
             Any exceptions raised by `subscribe_client.start()` or 
             `msg_dispatcher.start()` will propagate from this method.
+            Connection errors or issues with the MQTT broker may also raise exceptions.
 
         """
         self.publish_client.connect(*self.borker_info, 60)
