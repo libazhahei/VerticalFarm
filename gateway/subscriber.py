@@ -2,7 +2,6 @@ import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from datetime import datetime
-from typing import Awaitable
 
 from aiorwlock import RWLock
 
@@ -40,6 +39,8 @@ class GenericSubscriber(ABC):
 
 
 class MQTTSubscriber(GenericSubscriber):
+    """A subscriber class for handling MQTT messages."""
+
     @staticmethod
     @abstractmethod
     def parse_json(json_str: str) -> MQTTMessageType:
@@ -47,9 +48,11 @@ class MQTTSubscriber(GenericSubscriber):
         raise NotImplementedError("Subclasses must implement the parse_json method.")
 
 class BLESubscriber(GenericSubscriber):
+    """A subscriber class for handling BLE messages."""
+
     @staticmethod
     @abstractmethod
-    def parse_bytes(bytes: bytearray) -> BLEMessageType:
+    def parse_bytes(mgs_bytes: bytearray) -> BLEMessageType:
         """Parses a JSON string into a MessageType object."""
         raise NotImplementedError("Subclasses must implement the parse_json method.")
 
@@ -213,7 +216,21 @@ class CommandResponseSubscriber(GenericSubscriber):
         return internal_msg
 
 class SensorDataSubscriber(BLESubscriber):
+    """
+    A subscriber class responsible for handling sensor data messages and inserting them into the database.
+
+    Attributes:
+        db_writer (BatchWriter): An instance of BatchWriter to handle database operations.
+
+    Methods:
+        handle(msg: SensorDataMsg):
+            Asynchronously handles a sensor data message by inserting the data into the database.
+        parse_bytes(msg_bytes: bytearray) -> SensorDataMsg:
+            Parses a byte array into a SensorDataMsg object.
+    """
+
     def __init__(self, db_writer: BatchWriter) -> None:
+        """Initializes the SensorDataSubscriber with a BatchWriter instance."""
         self.db_writer = db_writer
 
     async def handle(self, msg: SensorDataMsg) -> None:
@@ -230,9 +247,9 @@ class SensorDataSubscriber(BLESubscriber):
         )
 
     @staticmethod
-    def parse_bytes(bytes: bytearray) -> SensorDataMsg:
+    def parse_bytes(msg_bytes: bytearray) -> SensorDataMsg:
         """Parses a byte array into a BLEMessageType object."""
-        internal_msg = SensorDataMsg.from_byte_array(bytes)
+        internal_msg = SensorDataMsg.from_byte_array(msg_bytes)
         return internal_msg
 
 class MessageDispatcher:
