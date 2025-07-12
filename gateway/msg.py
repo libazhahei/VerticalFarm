@@ -3,8 +3,6 @@ import json
 import threading
 from abc import ABC, abstractmethod
 from datetime import datetime
-
-
 from dataclasses import dataclass
 
 class IDGenerator:
@@ -29,7 +27,7 @@ class MessageType(ABC):
     def to_json(self, **kwargs) -> str:
         return json.dumps(self.to_dict(), **kwargs)
     
-    @abstractmethod
+    # @abstractmethod
     def parse_json(self, json_str: str):
         data = json.loads(json_str)
         return self.from_dict(data)
@@ -128,6 +126,30 @@ class ControlMsg(MessageType):
     def parse_json(self, json_str: str):
         return super().parse_json(json_str)
     
+    def __eq__(self, value: object) -> bool:
+        if not isinstance(value, ControlMsg):
+            return False
+        return (self.board_id == value.board_id and
+                self.mode == value.mode and
+                self.fan == value.fan and
+                self.led == value.led and
+                self.temperature == value.temperature and
+                self.light_intensity == value.light_intensity)
+    
+    def __hash__(self) -> int:
+        return hash((self.board_id, self.mode, self.fan, self.led, self.temperature, self.light_intensity))
+    
+    def __str__(self) -> str:
+        return (f"ControlMsg(board_id={self.board_id}, mode={self.mode}, "
+                f"fan={self.fan}, led={self.led}, temperature={self.temperature}, "
+                f"light_intensity={self.light_intensity}, message_id={self.message_id}, "
+                f"timestamp={self.timestamp})")
+    
+    def __repr__(self) -> str:
+        return (f"ControlMsg(board_id={self.board_id}, mode={self.mode}, "
+                f"fan={self.fan}, led={self.led}, temperature={self.temperature}, "
+                f"light_intensity={self.light_intensity}, message_id={self.message_id}, "
+                f"timestamp={self.timestamp})")
     
 @dataclass
 class StatusMsg(MessageType):
@@ -136,8 +158,14 @@ class StatusMsg(MessageType):
     """
     message_id: int 
     board_id: int
-    status: Status
+    status: int
     timestamp: float
+
+    def __init__(self, board_id: int, status: int, message_id: int = 0, timestamp: float = 0.0):
+        self.board_id = board_id
+        self.status = status
+        self.message_id = message_id
+        self.timestamp = timestamp
 
     def __post_init__(self):
         if not (0 <= self.board_id <= 6):
@@ -166,6 +194,9 @@ class StatusMsg(MessageType):
     
     def get_message_id(self) -> int:
         return self.message_id
+    
+    def parse_json(self, json_str: str):
+        return super().parse_json(json_str)
 @dataclass
 class HeartbeatMsg(MessageType):
     board_id: int
