@@ -255,6 +255,7 @@ class MQTTServiceContext:
 
     """
 
+    borker_info: tuple[str, int]
     heartbeat_sub: HeartbeatSubscriber
     msg_dispatcher: MessageDispatcher
     publish_client: Client
@@ -266,6 +267,7 @@ class MQTTServiceContext:
         Initializes the service with MQTT clients, message dispatchers, and subscribers.
 
         Args:
+            broker_info (tuple[str, int]): A tuple containing the MQTT broker host and port.
             borker_host (str): The hostname of the MQTT broker.
             broker_port (int, optional): The port of the MQTT broker. Defaults to 1883.
             client_id (str, optional): The client ID for the MQTT clients. Defaults to "mqtt_client".
@@ -282,7 +284,7 @@ class MQTTServiceContext:
         self.heartbeat_sub = HeartbeatSubscriber()
         self.msg_dispatcher = MessageDispatcher()
         self.publish_client = Client(client_id=f"{client_id}_publisher")
-        self.publish_client.connect(borker_host, broker_port, 60)
+        self.borker_info = (borker_host, broker_port)
         self.control_cmd_pub = ControlCommandPublisher(
             mqtt_client=self.publish_client, is_alive_func=self.heartbeat_sub.is_alive)
         self.command_status_sub = CommandResponseSubscriber(
@@ -320,6 +322,7 @@ class MQTTServiceContext:
             `msg_dispatcher.start()` will propagate from this method.
 
         """
+        self.publish_client.connect(*self.borker_info, 60)
         await self.subscribe_client.start()
         await self.msg_dispatcher.start()
         print("MQTT Service Context started.")
