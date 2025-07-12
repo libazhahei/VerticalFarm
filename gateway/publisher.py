@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from paho.mqtt.client import MQTT_ERR_SUCCESS, Client as MQTTClient
 
-from gateway.msg import ControlMsg, MessageType
+from gateway.msg import ControlMsg, MQTTMessageType
 
 from .constants import PUBLISH_CTRL_QOS, PUBLISH_ERR_MAX_RETRIES, PUBLISH_RESENT_MAX_RETRIES, PUBLISH_TIMEOUT_SECONDS
 
@@ -90,7 +90,7 @@ class ControlCommandPublisher:
         self.msgs = {}
         self.is_alive_func = is_alive_func
 
-    async def add_msg(self, message: MessageType, topic: str) -> None:
+    async def add_msg(self, message: MQTTMessageType, topic: str) -> None:
         """Adds a message to the publishing queue and initiates the publishing process.
 
         Args:
@@ -153,7 +153,7 @@ class ControlCommandPublisher:
             del self.msgs[message_id]
 
 
-    def safe_publish(self, message: MessageType, topic: str) -> bool:
+    def safe_publish(self, message: MQTTMessageType, topic: str) -> bool:
         """Safely publishes a message to a specified MQTT topic with retry logic.
 
         Args:
