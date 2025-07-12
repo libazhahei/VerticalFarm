@@ -9,6 +9,43 @@ from .subscriber import CommandResponseSubscriber, HeartbeatSubscriber, MessageD
 from .publisher import ControlCommandPublisher
 
 class MqttClientWrapper:
+    """
+    MqttClientWrapper is a wrapper class for managing MQTT client connections and message handling.
+
+    Attributes:
+        mqtt_client (Client): The MQTT client instance used for communication.
+        dispatcher (MessageDispatcher): The dispatcher responsible for handling internal messages.
+        mqtt_broker_host (str): The hostname or IP address of the MQTT broker.
+        mqtt_broker_port (int): The port number of the MQTT broker (default is 1883).
+        _mqtt_thread (threading.Thread | None): The background thread running the MQTT client loop.
+        _asyncio_loop (asyncio.AbstractEventLoop | None): The asyncio event loop used for asynchronous operations.
+        _topic_parsers (Dict[str, Callable[[str], MessageType]]): A dictionary mapping topics to their respective parser functions.
+
+    Methods:
+        __init__(dispatcher: MessageDispatcher, mqtt_broker_host: str, mqtt_broker_port: int = 1883, client_id: str = ""):
+            Initializes the MqttClientWrapper instance with the given dispatcher, broker host, port, and client ID.
+
+        register_topic_handler(topic: str, parser_func: Callable[[str], MessageType]):
+            Registers a parser function for a specific topic. Automatically subscribes to the topic if the client is connected.
+
+        _on_connect(client: Client, userdata, flags: dict, rc: int):
+            Callback function triggered when the MQTT client connects to the broker. Subscribes to registered topics.
+
+        _on_message(client: Client, userdata, msg: MQTTMessage):
+            Callback function triggered when a message is received. Parses and dispatches the message using the registered parser.
+
+        _mqtt_loop_in_thread():
+            Runs the MQTT client loop in a separate thread.
+
+        async start():
+            Starts the MQTT client, connects to the broker, and begins the background thread for the client loop.
+
+        async stop():
+            Stops the MQTT client, disconnects from the broker, and terminates the client loop.
+
+        is_connected() -> bool:
+            Returns whether the MQTT client is currently connected to the broker.
+    """
     mqtt_client: Client
     dispatcher: MessageDispatcher
 
