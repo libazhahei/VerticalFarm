@@ -486,7 +486,7 @@ class BLEClientWrapper:
     device_id_lists: set[int] 
     ble_clients: dict[int, BleakClient]
     is_running: bool
-    ble_devices: dict[int, BLEDevice]
+    ble_devices: dict[int, BLEDevice | None]
     connection_tasks: dict[int, asyncio.Task]
 
     def __init__(self, device_id_lists: list[int], dispatcher: MessageDispatcher) -> None:
@@ -511,7 +511,8 @@ class BLEClientWrapper:
         self.device_id_lists = set(device_id_lists)
         self.dispatcher = dispatcher
         self.ble_clients = {}
-        self.ble_devices = {}
+        # Initialize ble_devices with all device IDs set to None
+        self.ble_devices = dict.fromkeys(self.device_id_lists)
         self._asyncio_loop: asyncio.AbstractEventLoop | None = None
         self.is_running = False
         self._characteristic_parsers = {}
@@ -696,7 +697,7 @@ class BLEClientWrapper:
             self.is_running = False
             return
         for board_id, device in self.ble_devices.items():
-            if board_id in founded_devices:
+            if board_id in founded_devices and device is not None:
                 task = asyncio.create_task(self.connect_and_subscribe(board_id, device))
                 self.connection_tasks[board_id] = task
 
@@ -903,7 +904,7 @@ class BLEServiceContext:
         buf_data = await self.batch_writer.fetch()
         filtered_buf_data = [
             data for data in buf_data
-            if data.timestamp >= since and (not board_ids or data.board_id in board_ids)
+            if data.timestamp is not None and data.timestamp >= since and (not board_ids or data.board_id in board_ids)
         ]
         filtered_buf_data.sort(key=lambda x: x.timestamp, reverse=True)
         return db_data + filtered_buf_data
