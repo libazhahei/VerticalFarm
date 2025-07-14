@@ -5,8 +5,10 @@ from datetime import datetime
 
 from aiorwlock import RWLock
 
+from data.tables import BatchWriter, BoardData
+
 from .constants import DEVICE_MAX_ID, DEVICE_MIN_ID, SUBSCRIBE_HEARTBEAT_TIMEOUT_SECONDS
-from .msg import HeartbeatMsg, MessageType, StatusMsg
+from .msg import BLEMessageType, HeartbeatMsg, MessageType, MQTTMessageType, SensorDataMsg, StatusMsg
 
 
 class GenericSubscriber(ABC):
@@ -31,13 +33,26 @@ class GenericSubscriber(ABC):
     """
 
     @abstractmethod
-    async def handle(self, msg: MessageType) -> None:
+    async def handle(self, msg: MQTTMessageType) -> None:
         """Parses a JSON string into a MessageType object."""
         raise NotImplementedError("Subclasses must implement the handle method.")
 
+
+class MQTTSubscriber(GenericSubscriber):
+    """A subscriber class for handling MQTT messages."""
+
     @staticmethod
     @abstractmethod
-    def parse_json(json_str: str) -> MessageType:
+    def parse_json(json_str: str) -> MQTTMessageType:
+        """Parses a JSON string into a MessageType object."""
+        raise NotImplementedError("Subclasses must implement the parse_json method.")
+
+class BLESubscriber(GenericSubscriber):
+    """A subscriber class for handling BLE messages."""
+
+    @staticmethod
+    @abstractmethod
+    def parse_bytes(mgs_bytes: bytearray) -> BLEMessageType:
         """Parses a JSON string into a MessageType object."""
         raise NotImplementedError("Subclasses must implement the parse_json method.")
 
@@ -200,6 +215,43 @@ class CommandResponseSubscriber(GenericSubscriber):
         internal_msg = StatusMsg.from_json(json_str)
         return internal_msg
 
+class SensorDataSubscriber(BLESubscriber):
+    """
+    A subscriber class responsible for handling sensor data messages and inserting them into the database.
+
+    Attributes:
+        db_writer (BatchWriter): An instance of BatchWriter to handle database operations.
+
+    Methods:
+        handle(msg: SensorDataMsg):
+            Asynchronously handles a sensor data message by inserting the data into the database.
+        parse_bytes(msg_bytes: bytearray) -> SensorDataMsg:
+            Parses a byte array into a SensorDataMsg object.
+    """
+
+    def __init__(self, db_writer: BatchWriter) -> None:
+        """Initializes the SensorDataSubscriber with a BatchWriter instance."""
+        self.db_writer = db_writer
+
+    async def handle(self, msg: SensorDataMsg) -> None:
+        """Handles a BLE message by inserting the data into the database."""
+        if not isinstance(msg, SensorDataMsg):
+            raise TypeError("Message must be an instance of BLEMessageType")
+        await self.db_writer.add(
+            BoardData(
+                board_id=msg.board_id,
+                temperature=msg.temperature,
+                light_intensity=msg.light_intensity,
+                humidity=msg.humidity,
+            )
+        )
+
+    @staticmethod
+    def parse_bytes(msg_bytes: bytearray) -> SensorDataMsg:
+        """Parses a byte array into a BLEMessageType object."""
+        internal_msg = SensorDataMsg.from_byte_array(msg_bytes)
+        return internal_msg
+
 class MessageDispatcher:
     """A class responsible for dispatching messages to registered handlers asynchronously.
 
@@ -318,7 +370,7 @@ class MessageDispatcher:
         """
         while self.running:
             try:
-                msg: MessageType = await self.message_queue.get()
+                msg: MQTTMessageType = await self.message_queue.get()
                 print(f"Dispatching message: {msg}")
                 if type(msg) in self.subscribers:
                     asyncio.create_task(self.dispatch(msg))

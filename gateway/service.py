@@ -1,14 +1,35 @@
 import asyncio
 import threading
 from collections.abc import Callable
+from datetime import datetime
 from typing import Any
 
+from bleak import BleakClient, BleakScanner
+from bleak.backends.characteristic import BleakGATTCharacteristic
+from bleak.backends.device import BLEDevice
+from bleak.exc import BleakError
 from paho.mqtt.client import Client, MQTTMessage
 
-from .constants import SUBSCRIBE_CTRL_MSG_TOPIC, SUBSCRIBE_HEARTBEAT_TOPIC
-from .msg import ControlMsg, HeartbeatMsg, MessageType, StatusMsg
+from data.tables import BatchWriter, BoardData
+
+from .constants import (
+    DEVICE_PREFIX,
+    EXPOLATION_RETRY_DELAY_SECONDS,
+    MAX_EXPLORATION_TRIES,
+    MAX_EXPOLATION_TIMEOUT_SECONDS,
+    RECONNECTION_DELAY_SECONDS,
+    SUBSCRIBE_CTRL_MSG_TOPIC,
+    SUBSCRIBE_HEARTBEAT_TOPIC,
+    get_characteristic_uuid,
+)
+from .msg import BLEMessageType, ControlMsg, HeartbeatMsg, MQTTMessageType, StatusMsg
 from .publisher import ControlCommandPublisher
-from .subscriber import CommandResponseSubscriber, HeartbeatSubscriber, MessageDispatcher
+from .subscriber import (
+    CommandResponseSubscriber,
+    HeartbeatSubscriber,
+    MessageDispatcher,
+    SensorDataSubscriber,
+)
 
 
 class MqttClientWrapper:
@@ -62,9 +83,9 @@ class MqttClientWrapper:
         self.mqtt_broker_port = mqtt_broker_port
         self._mqtt_thread: threading.Thread | None = None
         self._asyncio_loop: asyncio.AbstractEventLoop | None = None
-        self._topic_parsers: dict[str, Callable[[str], MessageType]] = {}
+        self._topic_parsers: dict[str, Callable[[str], MQTTMessageType]] = {}
 
-    def register_topic_handler(self, topic: str, parser_func: Callable[[str], MessageType])-> None:
+    def register_topic_handler(self, topic: str, parser_func: Callable[[str], MQTTMessageType])-> None:
         """
         Registers a handler function for a specific MQTT topic and subscribes to the topic if the MQTT client is connected.
 
@@ -410,7 +431,7 @@ class MQTTServiceContext:
         """
         return self.subscribe_client.is_connected() and self.publish_client.is_connected()
 
-    async def publish_control_command(self, message: MessageType) -> None:
+    async def publish_control_command(self, message: MQTTMessageType) -> None:
         """
         Publishes a control command message to the specified topic.
 
@@ -429,6 +450,463 @@ class MQTTServiceContext:
         await self.control_cmd_pub.add_msg(message, SUBSCRIBE_CTRL_MSG_TOPIC)
 
 
+class BLEClientWrapper:
+    """
+    BLEClientWrapper is a class designed to manage Bluetooth Low Energy (BLE) connections and notifications 
+    for multiple devices. It provides functionality to connect to BLE devices, subscribe to notifications, 
+    and handle incoming data.
 
+    Attributes:
+        dispatcher (MessageDispatcher): An instance of MessageDispatcher used to handle parsed BLE messages.
+        device_id_lists (set[int]): A set of device IDs to manage connections for.
+        ble_clients (dict[int, BleakClient]): A dictionary mapping device IDs to their respective BleakClient instances.
+        is_running (bool): Indicates whether the BLE client wrapper is actively running.
+        ble_devices (dict[int, BLEDevice]): A dictionary mapping device IDs to their respective BLEDevice instances.
+        connection_tasks (dict[int, asyncio.Task]): A dictionary mapping device IDs to their respective asyncio tasks for connection management.
+
+    Methods:
+        __init__(device_id_lists: list[int], dispatcher: MessageDispatcher) -> None:
+            Initializes the BLEClientWrapper with a list of device IDs and a message dispatcher.
+        register_notification_handler(board_id: int, handler: Callable[[bytearray], BLEMessageType]) -> None:
+            Registers a handler function for processing notifications from a specific BLE device.
+        on_ble_notification(characteristic: BleakGATTCharacteristic, data: bytearray) -> None:
+            Handles incoming BLE notifications, parses the data using registered handlers, and dispatches messages.
+        connect_and_subscribe(board_id: int, device: BLEDevice) -> None:
+            Manages the connection and subscription process for a specific BLE device, including reconnection logic.
+        start() -> None:
+            Starts the BLE client wrapper, discovers devices, and initializes connections.
+        stop() -> None:
+            Stops the BLE client wrapper, cancels connection tasks, and disconnects all BLE clients.
+        is_connected() -> bool:
+            Checks if any BLE client is currently connected.
+
+    """
+
+    dispatcher: MessageDispatcher
+    device_id_lists: set[int] 
+    ble_clients: dict[int, BleakClient]
+    is_running: bool
+    ble_devices: dict[int, BLEDevice | None]
+    connection_tasks: dict[int, asyncio.Task]
+
+    def __init__(self, device_id_lists: list[int], dispatcher: MessageDispatcher) -> None:
+        """
+        Initializes the service with the provided device IDs and message dispatcher.
+
+        Args:
+            device_id_lists (list[int]): A list of device IDs to be managed by the service.
+            dispatcher (MessageDispatcher): An instance of MessageDispatcher to handle message dispatching.
+
+        Attributes:
+            device_id_lists (set[int]): A set of unique device IDs.
+            dispatcher (MessageDispatcher): The message dispatcher instance.
+            ble_clients (dict): A dictionary to store BLE clients.
+            ble_devices (dict): A dictionary to store BLE devices.
+            _asyncio_loop (asyncio.AbstractEventLoop | None): The asyncio event loop, initialized as None.
+            is_running (bool): A flag indicating whether the service is running.
+            _characteristic_parsers (dict): A dictionary to store characteristic parsers.
+            connection_tasks (dict): A dictionary to store connection tasks.
+
+        """
+        self.device_id_lists = set(device_id_lists)
+        self.dispatcher = dispatcher
+        self.ble_clients = {}
+        # Initialize ble_devices with all device IDs set to None
+        self.ble_devices = dict.fromkeys(self.device_id_lists)
+        self._asyncio_loop: asyncio.AbstractEventLoop | None = None
+        self.is_running = False
+        self._characteristic_parsers = {}
+        self.connection_tasks = {}
+
+    def register_notification_handler(self, board_id: int, handler: Callable[[bytearray], BLEMessageType]) -> None:
+        """
+        Registers a notification handler for a specific board ID.
+
+        This method associates a handler function with a given board ID. The handler
+        function will be invoked whenever a notification is received for the specified
+        board. The handler is expected to process the incoming data and return a 
+        BLEMessageType.
+
+        Args:
+            board_id (int): The unique identifier of the board for which the handler
+                is being registered.
+            handler (Callable[[bytearray], BLEMessageType]): A callable function that
+                takes a bytearray as input and returns a BLEMessageType. This function
+                will handle notifications for the specified board.
+
+        Returns:
+            None
+
+        """
+        self._characteristic_parsers[board_id] = handler
+
+    async def on_ble_notification(self, characteristic: BleakGATTCharacteristic , data: bytearray) -> None:
+        """
+        Handles BLE notifications received from a specific characteristic.
+
+        This method is triggered when a BLE notification is received. It identifies
+        the characteristic UUID, retrieves the corresponding parser function, and processes
+        the notification data. If a parser function is registered for the characteristic,
+        it parses the data and dispatches the resulting internal message. If no parser is
+        registered, it logs a message indicating the absence of a parser.
+
+        Args:
+            characteristic (BleakGATTCharacteristic): The BLE characteristic that triggered the notification.
+            data (bytearray): The raw data received from the BLE notification.
+
+        Raises:
+            Exception: If an error occurs during parsing or dispatching the BLE notification.
+
+        Notes:
+            - The characteristic UUID is used to look up the appropriate parser function.
+            - If no parser function is found for the characteristic UUID, a message is logged.
+            - Errors during parsing or dispatching are caught and logged for debugging purposes.
+
+        """
+        char_uuid = str(characteristic.uuid)
+
+        parser_func = self._characteristic_parsers.get(char_uuid)
+        if parser_func:
+            try:
+                internal_msg = parser_func(data)
+                await self.dispatcher.put_message(internal_msg)
+            except Exception as e:
+                print(f"BLE: Error parsing or dispatching BLE notification for {char_uuid} (data: {data.hex()}): {e}")
+        else:
+            print(f"BLE: No parser registered for characteristic: {char_uuid}")
+
+    async def connect_and_subscribe(self, board_id: int, device: BLEDevice) -> None:
+        """
+        Establishes a connection to a BLE device and subscribes to its notifications.
+
+        This asynchronous method attempts to connect to the specified BLE device and 
+        subscribes to notifications for characteristics associated with the given board ID. 
+        It handles reconnection attempts in case of errors or disconnections and ensures 
+        proper cleanup during shutdown.
+
+        Args:
+            board_id (int): The unique identifier for the board associated with the BLE device.
+            device (BLEDevice): The BLE device to connect to.
+
+        Raises:
+            BleakError: If there is an error during connection or subscription.
+            asyncio.CancelledError: If the connection task is cancelled.
+            Exception: For any unexpected errors during the connection process.
+
+        Notes:
+            - The method uses a reconnection delay defined by `RECONNECTION_DELAY_SECONDS` 
+              to retry connections in case of failures.
+            - Subscriptions are attempted for all characteristics defined in 
+              `self._characteristic_parsers`.
+            - The `disconnected_callback` is used to handle disconnection events.
+            - Proper cleanup is performed by disconnecting the client during shutdown.
+
+        """
+        client: BleakClient | None = None
+        while self.is_running:
+            try:
+                if client is None:
+                    client = BleakClient(device, disconnected_callback=lambda c: print(f"BLE: Disconnected from {device.name} (ID: {board_id})"))
+                    self.ble_clients[board_id] = client # Store the client instance
+
+                if not client.is_connected:
+                    print(f"BLE: Connecting to device {device.name} (ID: {board_id})...")
+                    await client.connect()
+                    print(f"BLE: Connected to device {device.name} (ID: {board_id}).")
+
+                    for _board_id in self._characteristic_parsers.keys():
+                        try:
+                            char_uuid = get_characteristic_uuid(_board_id)
+                            await client.start_notify(char_uuid, self.on_ble_notification)
+                            print(f"BLE: Subscribed to {char_uuid} on {device.name}.")
+                        except BleakError as e:
+                            print(f"BLE: Could not subscribe to {char_uuid} on {device.name}: {e}")
+
+            except BleakError as e:
+                print(f"BLE: Connection/subscription error with {device.name} (ID: {board_id}): {e}. Retrying in {RECONNECTION_DELAY_SECONDS}s...")
+                if client and client.is_connected:
+                    await client.disconnect() 
+                client = None 
+                await asyncio.sleep(RECONNECTION_DELAY_SECONDS)
+            except asyncio.CancelledError:
+                print(f"BLE: Connection task for {device.name} (ID: {board_id}) cancelled.")
+                break 
+            except Exception as e:
+                print(f"BLE: Unexpected error in connection task for {device.name} (ID: {board_id}): {e}. Retrying in {RECONNECTION_DELAY_SECONDS}s...")
+                if client and client.is_connected:
+                    await client.disconnect()
+                client = None
+                await asyncio.sleep(RECONNECTION_DELAY_SECONDS)
+        if client and client.is_connected:
+            print(f"BLE: Disconnecting client for {device.name} (ID: {board_id}) during shutdown.")
+            await client.disconnect()
+        print(f"BLE: Connection task for {device.name} (ID: {board_id}) finished.")
+
+    async def start(self) -> None:
+        """
+        Starts the BLE (Bluetooth Low Energy) client discovery and connection process.
+
+        This asynchronous method initializes BLE clients for devices specified in `self.device_id_lists`.
+        It performs device discovery using the `BleakScanner` and attempts to connect and subscribe to
+        the discovered devices.
+
+        Raises:
+            ValueError: If a device name cannot be parsed to extract a valid board ID.
+
+        Attributes:
+            self.is_running (bool): Indicates whether the BLE service is currently running.
+            self.device_id_lists (set): Set of expected device IDs to discover and connect.
+            self.ble_devices (dict): Dictionary mapping board IDs to their corresponding BLE devices.
+            self.connection_tasks (dict): Dictionary mapping board IDs to their connection tasks.
+            self._asyncio_loop (asyncio.AbstractEventLoop): The asyncio event loop used for asynchronous operations.
+
+        Note:
+            - `MAX_EXPOLATION_TIMEOUT_SECONDS`, `EXPOLATION_RETRY_DELAY_SECONDS`, and `DEVICE_PREFIX` are constants
+              used for device discovery and retry logic.
+            - This method is designed to run within an asyncio event loop.
+
+        """
+        if self.is_running:
+            print("BLE: Already running, cannot start again.")
+            return
+        self.is_running = True
+        self._asyncio_loop = asyncio.get_running_loop()
+        print("BLE: Starting BLE clients...")
+        founded_devices = set()
+        max_explore_tries = MAX_EXPLORATION_TRIES
+        while founded_devices != self.device_id_lists and max_explore_tries > 0:
+            max_explore_tries -= 1
+            print(f"BLE: Exploring devices, remaining tries: {max_explore_tries}")
+            devices = await BleakScanner.discover(timeout=MAX_EXPOLATION_TIMEOUT_SECONDS)
+            for device in devices:
+                if device.name and device.name.startswith(DEVICE_PREFIX):
+                    try:
+                        board_id = int(device.name.split("-")[-1], 16)
+                        if board_id in self.device_id_lists:
+                            founded_devices.add(board_id)
+                            if self.ble_devices[board_id] is None:
+                                self.ble_devices[board_id] = device
+                                print(f"BLE: Found and initialized client for board ID {board_id}.")
+                    except ValueError as e:
+                        print(f"BLE: Error parsing board ID from device name '{device.name}': {e}")
+            if founded_devices != self.device_id_lists and max_explore_tries > 0:
+                print(f"BLE: Not all devices found yet, retrying in {EXPOLATION_RETRY_DELAY_SECONDS}s...")
+                await asyncio.sleep(EXPOLATION_RETRY_DELAY_SECONDS)
+        if founded_devices != self.device_id_lists:
+            print(f"BLE: Not all devices found after exploration: {self.device_id_lists - founded_devices}.")
+            self.is_running = False
+            return
+        for board_id, device in self.ble_devices.items():
+            if board_id in founded_devices and device is not None:
+                task = asyncio.create_task(self.connect_and_subscribe(board_id, device))
+                self.connection_tasks[board_id] = task
+
+    async def stop(self) -> None:
+        """
+        Stops the BLE (Bluetooth Low Energy) service and disconnects all active clients.
+
+        This method performs the following actions:
+        1. Checks if the service is running; if not, logs a message and exits.
+        2. Cancels all ongoing connection tasks.
+        3. Awaits the completion of all connection tasks, handling exceptions.
+        4. Disconnects all connected BLE clients.
+        5. Clears the BLE clients, devices, and connection tasks.
+
+        This ensures that the BLE service is properly shut down and all resources are released.
+
+        Returns:
+            None
+
+        """
+        if not self.is_running:
+            print("BLE: Not running, cannot stop.")
+            return
+        self.is_running = False
+        print("BLE: Stopping BLE clients...")
+        for _, task in self.connection_tasks.items():
+            if task and not task.done():
+                task.cancel()
+        await asyncio.gather(*self.connection_tasks.values(), return_exceptions=True)
+        for client in self.ble_clients.values():
+            if client and client.is_connected:
+                await client.disconnect()
+        self.ble_clients.clear()
+        self.ble_devices.clear()
+        self.connection_tasks.clear()
+        print("BLE: All BLE clients stopped.")
+
+    def is_connected(self) -> bool:
+        """
+        Check if any BLE client is currently connected.
+
+        Returns:
+            bool: True if at least one BLE client is connected, False otherwise.
+
+        """
+        return any(client.is_connected for client in self.ble_clients.values())
+
+class BLEServiceContext:
+    """
+    BLEServiceContext is a service context for managing BLE (Bluetooth Low Energy) operations. 
+    It encapsulates the BLE client, message dispatcher, and batch writer, providing methods 
+    to start, stop, and interact with BLE devices.
+
+    Attributes:
+        ble_sub (SensorDataSubscriber): Subscriber for sensor data.
+        msg_dispatcher (MessageDispatcher): Dispatcher for handling messages.
+        ble_client (BLEClientWrapper): Wrapper for BLE client operations.
+        is_running (bool): Indicates whether the service is currently running.
+        _asyncio_loop (asyncio.AbstractEventLoop | None): The asyncio event loop used by the service.
+        batch_writer (BatchWriter): Writer for batching data operations.
+
+    Methods:
+        __init__(device_id_list: List[int]) -> None:
+            Initializes the BLEServiceContext with a list of device IDs.
+        async start() -> None:
+            Starts the BLE service context, initializing all components and setting up the event loop.
+        async stop() -> None:
+            Stops the BLE service context, shutting down all components.
+        is_connected() -> bool:
+            Checks if the BLE client is currently connected.
+        connected_devices() -> List[int]:
+            Retrieves a list of IDs for devices that are currently connected.
+        async fetch_data(since: datetime, board_ids: Optional[List[int]]) -> List[BoardData]:
+            Fetches all data since a given timestamp, optionally filtered by board IDs.
+
+    """
+
+    ble_sub: SensorDataSubscriber
+    msg_dispatcher: MessageDispatcher
+    ble_client: BLEClientWrapper
+    is_running: bool
+    _asyncio_loop: asyncio.AbstractEventLoop | None
+    batch_writer: BatchWriter
+
+    def __init__(self, device_id_list: list[int] ) -> None:
+        """
+        Initializes the service with the necessary components for BLE communication 
+        and message handling.
+
+        Args:
+            device_id_list (List[int]): A list of device IDs to be used for BLE communication.
+
+        Attributes:
+            msg_dispatcher (MessageDispatcher): Handles the dispatching of messages.
+            batch_writer (BatchWriter): Responsible for batch writing operations.
+            ble_sub (SensorDataSubscriber): Subscribes to sensor data and processes it.
+            ble_client (BLEClientWrapper): Manages BLE communication with the specified devices.
+            _asyncio_loop (Optional[asyncio.AbstractEventLoop]): The asyncio event loop used for asynchronous operations.
+            is_running (bool): Indicates whether the service is currently running.
+
+        """
+        self.msg_dispatcher = MessageDispatcher()
+        self.batch_writer = BatchWriter()
+        self.ble_sub = SensorDataSubscriber(self.batch_writer)
+        self.ble_client = BLEClientWrapper(
+            device_id_lists=device_id_list,
+            dispatcher=self.msg_dispatcher
+        )
+        self.msg_dispatcher.register_handler(
+            MQTTMessageType, self.ble_sub.handle
+        )
+        for device_id in device_id_list:
+            self.ble_client.register_notification_handler(
+                device_id, self.ble_sub.parse_bytes
+            )
+        self._asyncio_loop = None
+        self.is_running = False
+
+
+    async def start(self) -> None:
+        """
+        Starts the BLE Service Context if it is not already running.
+
+        This method initializes the asyncio event loop and sets the service 
+        to a running state. It starts the batch writer, message dispatcher, 
+        and BLE client asynchronously. If the service is already running, 
+        it logs a message and exits without restarting.
+
+        Returns:
+            None
+
+        """
+        if self.is_running:
+            print("BLE Service Context: Already running, cannot start again.")
+            return
+        self._asyncio_loop = asyncio.get_running_loop()
+        self.is_running = True
+        print("BLE Service Context: Starting BLE clients...")
+        await self.batch_writer.start()
+        await self.msg_dispatcher.start()
+        await self.ble_client.start()
+        print("BLE Service Context started.")
+
+    async def stop(self) -> None:
+        """
+        Stops the BLE service context and its associated components.
+
+        This method ensures that the BLE service context is properly stopped
+        by halting its batch writer, message dispatcher, and BLE client. If
+        the service is not running, it logs a message and exits without performing
+        any actions.
+
+        Returns:
+            None
+
+        """
+        if not self.is_running:
+            print("BLE Service Context: Not running, cannot stop.")
+            return
+        self.is_running = False
+        print("BLE Service Context: Stopping BLE clients...")
+        await self.batch_writer.stop()
+        await self.msg_dispatcher.stop()
+        await self.ble_client.stop()
+        print("BLE Service Context stopped.")
+
+    def is_connected(self) -> bool:
+        """
+        Check if the BLE client is currently connected.
+
+        Returns:
+            bool: True if the BLE client is connected, False otherwise.
+
+        """
+        return self.ble_client.is_connected()
+    def connected_devices(self) -> list[int]:
+        """
+        Asynchronously retrieves a list of IDs for devices that are currently connected.
+
+        Returns:
+            List[int]: A list of integers representing the IDs of devices that are connected.
+
+        """
+        return list(self.ble_client.ble_devices.keys())
+
+    async def fetch_data(self, since: datetime, board_ids: list[int] | None) -> list[BoardData]:
+        """
+        Fetches all data since a timestamp, optionally filtered by board_ids.
+
+        Args:
+            since (datetime): The earliest timestamp.
+            board_ids (Optional[List[int]]): List of board_ids to filter by.
+
+        Returns:
+            List[BoardData]: Sorted (descending) BoardData list.
+
+        """
+        db_query = BoardData.filter(timestamp__gte=since)
+        if board_ids:
+            db_query = db_query.filter(board_id__in=board_ids)
+
+        db_data = await db_query.order_by("-timestamp").all()
+
+        buf_data = await self.batch_writer.fetch()
+        filtered_buf_data = [
+            data for data in buf_data
+            if data.timestamp is not None and data.timestamp >= since and (not board_ids or data.board_id in board_ids)
+        ]
+        filtered_buf_data.sort(key=lambda x: x.timestamp, reverse=True)
+        return db_data + filtered_buf_data
 
 
