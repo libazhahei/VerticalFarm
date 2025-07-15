@@ -1,2 +1,4 @@
 paho-mqtt==2.1.0
 aiorwlock==1.5.0
+tortoise-orm==0.25.1
+bleak==1.0.1
