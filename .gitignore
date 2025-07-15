@@ -213,3 +213,9 @@ __marimo__/
 # Linter Cache 
 .ruff_cache/
 
+# JupyterLab & Jupyter Notebook
+.jupyterlab/
+.jupyter/
+**/*.ipynb 
+# JupyterLab & Jupyter Notebook checkpoints
+.ipynb_checkpoints

@@ -1,0 +1,98 @@
+------------------------------------------ STEP 1 ----------------------------------
+input: 
+ {
+    "plant": "iceberg lettuce",
+    "growth_stage": "The first leaf stage",
+    "target_orientation": "Grow healthy",
+    "comment": ""
+}
+output: 
+{'temperature_celsius': {'day_range': [15, 21], 'night_range': [10, 15]},
+ 'relative_humidity_percent': {'ideal_range': [50, 70]},
+ 'ppfd_umol_m2_s': '150-250',
+ 'dli_mol_m2_day': '8-12',
+ 'references': [{'name': 'Lettuce Growing Guide - Southern Exposure Seed Exchange',
+   'link': 'https://www.southernexposure.com/lettuce-growing-guide/'},
+  {'name': 'Growing Backyard Lettuce: A Guide on How to Grow and Harvest - CreateMyGarden',
+   'link': 'https://www.createmygarden.net/growing-lettuce-guide/'},
+  {'name': 'Growing Lettuce in a Home Garden - University of Maryland Extension',
+   'link': 'https://extension.umd.edu/resource/growing-lettuce-home-garden'}],
+ 'notes': 'At the first leaf stage (early seedling), 
+ iceberg lettuce thrives in cool temperatures ideally between 15-21°C during the day and 10-15°C at night to avoid bolting and bitterness. 
+ Relative humidity around 50-70% supports healthy growth without promoting disease. 
+ Light intensity of 150-250 µmol·m⁻²·s⁻¹ PPFD with a daily light integral (DLI) of 8-12 mol·m⁻²·day⁻¹ optimizes photosynthesis for leaf expansion. 
+ Seedlings are sensitive to temperature stress; 
+ temperatures below 10°C can slow growth, while above 24°C risks early bolting. 
+ Providing 4-6 hours of direct or bright indirect light is beneficial. 
+ Nutrient uptake is moderate but requires adequate organic matter or starter fertilizer. 
+ Thinning seedlings to maintain spacing (~6 inches) is recommended to prevent overcrowding and ensure vigor. 
+ CO2 enrichment is generally not critical at this stage but can enhance growth in controlled environments.'}
+
+------------------------------------------ STEP 2 ----------------------------------
+output: 
+{'lighting_strategy': {'photoperiod_hours': 16,
+  'daytime_target_lux': [8000, 14000],
+  'notes': 'Provide 150–250 µmol·m⁻²·s⁻¹ PPFD (~8,000–14,000 lux) for DLI 8–12 mol·m⁻²·day⁻¹; 16 h supports leaf expansion without heat stress.'},
+ 'climate_strategy': {'day': {'temperature_celsius': [15, 21],
+   'humidity_percent': [50, 70]},
+  'night': {'temperature_celsius': [10, 15], 'humidity_percent': [50, 70]},
+  'control_logic': 'During light period run LED at full output; activate exhaust fan (up to 3400 RPM) when T >21 °C or RH >70%; at night turn off LED and reduce fan speed to maintain 10–15 °C.'},
+ 'manual_check_recommendations': [['Leaf color',
+   'Yellow or pale leaves indicate insufficient light or nutrient uptake'],
+  ['Leaf edge burn',
+   'Brown/crisp margins indicate low humidity or nutrient imbalance'],
+  ['Wall condensation', 'Excess droplets indicate RH >70%']],
+ 'strategy_failure_escalation': [{'condition': 'Humidity stays above 75%',
+   'detection_period': '4 hours continuous',
+   'equipment_limitation_considered': 'Exhaust fan at max RPM cannot drop RH further in closed system',
+   'location_season_weather_factors': 'Winter indoor ambient RH ~51% and no dehumidifier',
+   'recovery_suggestion': 'Add desiccant packs or low-wattage heater; briefly open door for controlled exchange'},
+  {'condition': 'Temperature rises above 22 °C',
+   'detection_period': '2 hours during photoperiod',
+   'equipment_limitation_considered': 'No active cooling other than passive fan; LED heat load in small volume',
+   'location_season_weather_factors': 'Indoor winter heating plus LED output in 25×20×25 cm chamber',
+   'recovery_suggestion': 'Reduce LED intensity or photoperiod; install passive heat sink or small external cooler'}]
+}
+
+------------------------------------------ STEP 3 ----------------------------------
+{'cases': [{'Case_ID': 'Case_1_HighTemp_HighHum',
+   'Condition_IF': 'Temperature > 21°C AND Humidity > 70% (Lights ON)',
+   'Diagnosis_Tradeoff_Analysis': 'Elevated temperature and high humidity increase heat stress and disease risk; increasing ventilation reduces humidity and leaf surface temperature but drives higher transpiration and energy use; dimming lights reduces heat load but sacrifices photosynthesis.',
+   'Primary_Control_Priority': 'Prevent heat/cold damage',
+   'Prioritized_Action_Chain': ['Set fan to 100% (3400 RPM)',
+    'Dim LED to 8,000 Lux'],
+   '15 min_Goal_and_Tradeoff': 'Achieve Temperature ≤ 21°C and Humidity ≤ 70%; DLI accumulation is temporarily reduced to ~0.5 mol/m²'},
+  {'Case_ID': 'Case_2_HighTemp_LowHum',
+   'Condition_IF': 'Temperature > 21°C AND Humidity < 50% (Lights ON)',
+   'Diagnosis_Tradeoff_Analysis': 'High temperature and low humidity drive excessive transpiration and dehydration risk; reducing fan speed conserves moisture but may allow temperature rise; dimming lights lowers heat load but reduces photosynthesis.',
+   'Primary_Control_Priority': 'Prevent heat/cold damage',
+   'Prioritized_Action_Chain': ['Set fan to 50% (1700 RPM)',
+    'Dim LED to 10,000 Lux'],
+   '15 min_Goal_and_Tradeoff': 'Achieve Temperature ≤ 21°C and Humidity ≥ 50%; photosynthesis rate is reduced by ~15%'},
+  {'Case_ID': 'Case_3_IdealTemp_HighHum',
+   'Condition_IF': 'Temperature 15–21°C AND Humidity > 70% (Lights ON)',
+   'Diagnosis_Tradeoff_Analysis': 'Optimal temperature but excessive humidity increases disease risk and reduces gas exchange; max ventilation lowers RH but increases energy use and leaf water loss; maintaining light maximizes photosynthesis.',
+   'Primary_Control_Priority': 'Avoid disease risk',
+   'Prioritized_Action_Chain': ['Set fan to 100% (3400 RPM)',
+    'Maintain LED at 15,000 Lux'],
+   '15 min_Goal_and_Tradeoff': 'Achieve Humidity ≤ 70% while keeping Temperature 15–21°C; minor DLI reduction due to higher ventilation'},
+  {'Case_ID': 'Case_4_LowTemp_HighHum',
+   'Condition_IF': 'Temperature < 15°C AND Humidity > 70% (Lights ON)',
+   'Diagnosis_Tradeoff_Analysis': 'Low temperature slows growth and high humidity promotes condensation and pathogens; reducing fan conserves heat but may trap moisture; increasing light raises temp but risks localized heat stress.',
+   'Primary_Control_Priority': 'Prevent heat/cold damage',
+   'Prioritized_Action_Chain': ['Set fan to 20% (680 RPM)',
+    'Increase LED to 20,000 Lux'],
+   '15 min_Goal_and_Tradeoff': 'Achieve Temperature ≥ 15°C and Humidity ≤ 70%; slight risk of higher leaf-surface temperature spots'},
+  {'Case_ID': 'Case_5_All_Ideal',
+   'Condition_IF': 'Temperature 15–21°C AND Humidity 50–70% AND LED 15,000–20,000 Lux (Lights ON)',
+   'Diagnosis_Tradeoff_Analysis': 'All parameters optimal; opportunity to maximize photosynthesis with balanced energy use; excessive fan or light would waste energy without benefit.',
+   'Primary_Control_Priority': 'Maximize photosynthesis',
+   'Prioritized_Action_Chain': ['Set LED to 20,000 Lux',
+    'Set fan to 50% (1700 RPM)'],
+   '15 min_Goal_and_Tradeoff': 'Maintain Temperature 15–21°C, Humidity 50–70%, DLI accumulation ~1.5 mol/m²; energy use is moderated'},
+  {'Case_ID': 'Case_6_NightMode_ColdHighHum',
+   'Condition_IF': 'Lights OFF AND Temperature < 10°C AND Humidity > 70%',
+   'Diagnosis_Tradeoff_Analysis': 'Cold and high humidity at night risk condensation and pathogen growth; increased ventilation reduces humidity but further cools chamber; fan use raises energy consumption without photosynthesis benefit.',
+   'Primary_Control_Priority': 'Prevent heat/cold damage',
+   'Prioritized_Action_Chain': ['Set fan to 20% (680 RPM)'],
+   '15 min_Goal_and_Tradeoff': 'Achieve Temperature ≥ 10°C and Humidity ≤ 70%; energy consumption increases without DLI gain'}]}
