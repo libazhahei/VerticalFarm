@@ -51,7 +51,7 @@ def get_commands(message, llm):
 def handle_client(conn, addr):
     print(f"client {addr} connecting")
     try:
-        data = conn.recv(1024).decode()
+        data = conn.recv(4096).decode()
         if data:
             response = get_commands(data, llm)
             conn.sendall(response.encode())
