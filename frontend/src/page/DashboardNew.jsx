@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Box, CssBaseline, Typography, Grid, Toolbar, ThemeProvider } from '@mui/material';
 import Sidebar from '../components/SideBar';
 import OverviewSection from '../components/OverviewSection';
@@ -8,12 +8,15 @@ import DeviceManagement from '../components/DeviceManagement';
 import ManualControl from '../components/ManualControl';
 import theme from '../theme';
 
-// const overviewData = [
-//   { id: 1, temp: 25.3, humidity: 70, light: 750, fan: true, led: true },
-//   { id: 2, temp: 27.6, humidity: 50, light: 450, fan: false, led: false },
-//   { id: 3, temp: 24.8, humidity: 72, light: 722, fan: true, led: true },
-//   { id: 4, temp: 27.3, humidity: 65, light: 610, fan: false, led: false }
-// ];
+const fakeData = {
+  timestamp: '2025-07-16T10:00:00Z',
+  boards: [
+    { board_id: 1, temperature: 24.5, humidity: 70, light: 500, fan: 1, led: 0, online: true },
+    { board_id: 2, temperature: 26.1, humidity: 65, light: 450, fan: 0, led: 1, online: true },
+    { board_id: 3, temperature: 23.8, humidity: 72, light: 610, fan: 1, led: 1, online: false },
+    { board_id: 4, temperature: 23.8, humidity: 72, light: 610, fan: 1, led: 1, online: false }
+  ]
+};
 
 const historyData = [
   { timestamp: '08:00', val1: 22, val2: 24, val3: 20 },
@@ -50,29 +53,65 @@ const target = {
 
 export default function DashboardPage () {
   const drawerWidth = 200;
+  const [boards, setBoards] = useState([]);
+  const [timestamp, setTimestamp] = useState('');
+
+  useEffect(() => {
+    // Normally: fetch realtime from backend
+    // const fetchRealtime = async () => {
+    //   const data = await sendRequest('api/realtime', 'GET');
+    //   setTimestamp(data.timestamp);
+    //   setBoards(data.boards);
+    // };
+    // fetchRealtime();
+
+    // Using fake data for now
+    setTimestamp(fakeData.timestamp);
+    setBoards(fakeData.boards);
+  }, []);
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
         <Sidebar />
+
         <Box
           component="main"
-          sx={{ flexGrow: 1, ml: `${drawerWidth}px`, width: `calc(100% - ${drawerWidth}px)`, p: 3 }}
+          sx={{
+            flexGrow: 1,
+            ml: `${drawerWidth}px`,
+            width: `calc(100% - ${drawerWidth}px)`,
+            p: 3
+          }}
         >
           <Toolbar />
-          <Typography variant="h4" gutterBottom>System Overview</Typography>
-          <Grid container spacing={2}>
+          <Typography variant="h4" gutterBottom>
+            System Overview
+          </Typography>
+          {timestamp && (
+            <Typography variant="caption">Last updated: {timestamp}</Typography>
+          )}
+
+          <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid item xs={12} md={8}>
-              <OverviewSection />
-              <Box sx={{ mt: 2 }}><HistoricalTrends data={historyData} /></Box>
+              <OverviewSection boards={boards} />
+              <Box sx={{ mt: 2 }}>
+                <HistoricalTrends data={historyData} />
+              </Box>
             </Grid>
+
             <Grid item xs={12} md={4}>
               <GaugeInsightsSection insight={insight} target={target} />
             </Grid>
           </Grid>
+
           <Grid container spacing={2} sx={{ mt: -1 }}>
-            <Grid item xs={12} md={6}><DeviceManagement devices={devices} /></Grid>
-            <Grid item xs={12} md={6}><ManualControl /></Grid>
+            <Grid item xs={12} md={6}>
+              <DeviceManagement devices={devices} />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <ManualControl />
+            </Grid>
           </Grid>
         </Box>
       </Box>

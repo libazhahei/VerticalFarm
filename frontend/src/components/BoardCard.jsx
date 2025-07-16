@@ -14,32 +14,28 @@ const GlassCard = styled(Card)(({ theme }) => ({
 
 export default function BoardCard ({ board }) {
   const metrics = [
-    { label: 'Temp', value: `${board.temp}°C` },
+    { label: 'Temp', value: `${board.temperature}°C` },
     { label: 'Humidity', value: `${board.humidity}%` },
     { label: 'Light', value: `${board.light}lx` }
   ];
+
   return (
-    <GlassCard elevation={1} sx={{ p: 2 }}>
+    <GlassCard elevation={1} sx={{ p: 2, opacity: board.online ? 1 : 0.5 }}>
       <Box display="flex" alignItems="center" mb={1}>
         <SensorsIcon color="primary" sx={{ mr: 1, fontSize: 36 }} />
-        <Typography variant="h6">Board {board.id}</Typography>
+        <Typography variant="h6">Board {board.board_id}</Typography>
+        {!board.online && <Chip label="Offline" color="default" size="small" sx={{ ml: 1 }} />}
       </Box>
       <Grid container spacing={1}>
         {metrics.map(item => (
           <React.Fragment key={item.label}>
-            <Grid item xs={4}>
-              <Typography variant="body2" color="text.secondary">{item.label}</Typography>
-            </Grid>
-            <Grid item xs={8}>
-              <Typography variant="body1">{item.value}</Typography>
-            </Grid>
+            <Grid item xs={4}><Typography variant="body2" color="text.secondary">{item.label}</Typography></Grid>
+            <Grid item xs={8}><Typography variant="body1">{item.value}</Typography></Grid>
           </React.Fragment>
         ))}
         {['fan', 'led'].map(key => (
           <React.Fragment key={key}>
-            <Grid item xs={4}>
-              <Typography variant="body2" color="text.secondary">{key.toUpperCase()}</Typography>
-            </Grid>
+            <Grid item xs={4}><Typography variant="body2" color="text.secondary">{key.toUpperCase()}</Typography></Grid>
             <Grid item xs={8}>
               <Chip
                 label={board[key] ? 'On' : 'Off'}
