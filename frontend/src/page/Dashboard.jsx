@@ -5,6 +5,8 @@ import {
   Card,
   CardContent,
   Typography,
+  CssBaseline,
+  Link,
   Chip,
   Switch,
   Table,
@@ -12,10 +14,31 @@ import {
   TableRow,
   TableCell,
   TableBody,
-  Divider
+  Divider,
+  Drawer,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  Toolbar
 } from '@mui/material';
-import { createTheme, ThemeProvider, styled } from '@mui/material/styles';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip } from 'recharts';
+import {
+  createTheme,
+  ThemeProvider,
+  styled
+} from '@mui/material/styles';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip
+} from 'recharts';
+import HomeIcon from '@mui/icons-material/Home';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import ChatIcon from '@mui/icons-material/Chat';
+import SettingsIcon from '@mui/icons-material/Settings';
 import SensorsIcon from '@mui/icons-material/Sensors';
 
 // Custom theme with larger font sizes
@@ -28,17 +51,22 @@ const theme = createTheme({
     text: { primary: '#ffffff', secondary: 'rgba(255,255,255,0.7)' }
   },
   typography: {
-    fontSize: 16,
-    h4: { fontSize: '2.5rem' },
-    h6: { fontSize: '1.75rem' },
-    subtitle1: { fontSize: '1.25rem' },
-    body1: { fontSize: '1rem' },
-    body2: { fontSize: '0.95rem' },
-    caption: { fontSize: '0.85rem' }
+    // Base font size
+    fontSize: 18,
+    // Page title
+    h4: { fontSize: '3rem', fontWeight: 700 },
+    // Section titles
+    subtitle1: { fontSize: '1.75rem', fontWeight: 600 },
+    // Card headings
+    h6: { fontSize: '1.5rem', fontWeight: 600 },
+    // Body text / labels
+    body1: { fontSize: '1.125rem', fontWeight: 500 },
+    body2: { fontSize: '1rem', fontWeight: 500 },
+    // Captions
+    caption: { fontSize: '0.95rem', fontWeight: 500 },
   },
   shape: { borderRadius: 8 }
 });
-
 const GlassCard = styled(Card)(({ theme }) => ({
   background: theme.palette.background.paper,
   border: '1px solid rgba(0, 0, 0, 0.12)',
@@ -58,27 +86,51 @@ const overviewData = [
 function BoardCard ({ board }) {
   return (
     <GlassCard elevation={1} sx={{ p: 2 }}>
+      {/* Board title, larger & bold */}
       <Box display="flex" alignItems="center" mb={1}>
-        <SensorsIcon color="primary" sx={{ mr: 1, fontSize: 32 }} />
-        <Typography variant="h6">Board {board.id}</Typography>
+        <SensorsIcon color="primary" sx={{ mr: 1, fontSize: 36 }} />
+        <Typography variant="h6" fontWeight="700">
+          Board {board.id}
+        </Typography>
       </Box>
+
       <Grid container spacing={1}>
         {[
-          { label: 'Temp', value: `${board.temp}°C` },
-          { label: 'Humidity', value: `${board.humidity}%` },
-          { label: 'Light', value: `${board.light} lx` }
+          { label: 'Temp', value: `${board.temp}°C`, unit: true },
+          { label: 'Humidity', value: `${board.humidity}%`, unit: true },
+          { label: 'Light', value: `${board.light}lx`, unit: true }
         ].map((item) => (
           <React.Fragment key={item.label}>
-            <Grid item xs={4}><Typography variant="body1" color="textSecondary">{item.label}</Typography></Grid>
-            <Grid item xs={8}><Typography variant="body1">{item.value}</Typography></Grid>
+            <Grid item xs={4}>
+              <Typography variant="body2" color="text.secondary" fontWeight="500">
+                {item.label}
+              </Typography>
+            </Grid>
+            <Grid item xs={8}>
+              {/* value in body1 (bigger) */}
+              <Typography variant="body1" fontWeight="600">
+                {item.value}
+              </Typography>
+            </Grid>
           </React.Fragment>
         ))}
         {['Fan', 'LED'].map((label) => {
           const status = board[label.toLowerCase()];
           return (
             <React.Fragment key={label}>
-              <Grid item xs={4}><Typography variant="body1" color="textSecondary">{label}</Typography></Grid>
-              <Grid item xs={8}><Chip label={status ? 'On' : 'Off'} size="small" color={status ? 'primary' : 'default'} /></Grid>
+              <Grid item xs={4}>
+                <Typography variant="body2" color="text.secondary" fontWeight="500">
+                  {label}
+                </Typography>
+              </Grid>
+              <Grid item xs={8}>
+                <Chip
+                  label={status ? 'On' : 'Off'}
+                  size="medium"
+                  color={status ? 'primary' : 'default'}
+                  sx={{ fontWeight: 600 }}
+                />
+              </Grid>
             </React.Fragment>
           );
         })}
@@ -99,8 +151,8 @@ function OverviewSection () {
 
 function TemperatureGauge () {
   const temperature = 25.3;
-  const size = 180;
-  const strokeWidth = 16;
+  const size = 240;
+  const strokeWidth = 20;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (temperature / 40) * circumference;
@@ -164,23 +216,64 @@ function AITarget () {
     PPFD: [200, 250],
     DLI: [12, 14],
     Photoperiod: [
-      { period: '12 hr', light_intensity: 30000 },
-      { period: '12 hr', light_intensity: 1000 }
+      { period: '12 hr', light_intensity: 30000 },
+      { period: '12 hr', light_intensity: 1000 }
     ],
     data_source: [
       { name: 'Hortscience', link: 'https://example.com/hortscience' }
     ]
   };
+
   return (
     <GlassCard elevation={1} sx={{ p: 2 }}>
-      <Typography variant="subtitle1" gutterBottom>AI Target</Typography>
+      <Typography variant="subtitle1" gutterBottom>
+        AI Target
+      </Typography>
+
       <Grid container spacing={1}>
-        {Object.entries(target).map(([key, val]) => (
-          <Grid item xs={12} sm={6} key={key}>
-            <Typography variant="body1"><strong>{key.replace('_', ' ').toUpperCase()}:</strong> {Array.isArray(val) ? JSON.stringify(val) : val.toString()}</Typography>
-          </Grid>
-        ))}
+        {/* Left column */}
+        <Grid item xs={12} sm={6}>
+          <Typography variant="body2"><strong>Day Temp:</strong> {target.day_temperature[0]}–{target.day_temperature[1]}°C</Typography>
+          <Typography variant="body2"><strong>Night Temp:</strong> {target.night_temperature[0]}–{target.night_temperature[1]}°C</Typography>
+          <Typography variant="body2"><strong>Humidity:</strong> {target.humidity[0]}–{target.humidity[1]}%</Typography>
+        </Grid>
+
+        {/* Right column */}
+        <Grid item xs={12} sm={6}>
+          <Typography variant="body2"><strong>PPFD:</strong> {target.PPFD[0]}–{target.PPFD[1]} µmol/m²/s</Typography>
+          <Typography variant="body2"><strong>DLI:</strong> {target.DLI[0]}–{target.DLI[1]} mol/m²/day</Typography>
+          <Typography variant="body2"><strong>Photoperiod:</strong></Typography>
+          <Box component="ul" sx={{ pl: 2, my: 0 }}>
+            {target.Photoperiod.map((p, i) => (
+              <li key={i}>
+                <Typography variant="body2">
+                  {p.period} at {p.light_intensity.toLocaleString()}Lux
+                </Typography>
+              </li>
+            ))}
+          </Box>
+        </Grid>
       </Grid>
+
+      {/* Data source */}
+      <Box sx={{ mt: 1 }}>
+        <Typography variant="body2" fontWeight="bold">
+          Data Source:
+        </Typography>
+        {target.data_source.map((src, i) => (
+          <Link
+            key={i}
+            href={src.link}
+            target="_blank"
+            rel="noopener"
+            variant="body2"
+            display="block"
+            sx={{ mt: 0.5 }}
+          >
+            {src.name}
+          </Link>
+        ))}
+      </Box>
     </GlassCard>
   );
 }
@@ -195,7 +288,7 @@ function GaugeInsightsSection () {
   );
 }
 
-function HistoricalTrends () {
+export function HistoricalTrends () {
   const historyData = [
     { timestamp: '08:00', val1: 22, val2: 24, val3: 20 },
     { timestamp: '10:00', val1: 23, val2: 25, val3: 21 },
@@ -205,15 +298,41 @@ function HistoricalTrends () {
 
   return (
     <GlassCard elevation={1} sx={{ p: 2 }}>
-      <Typography variant="subtitle1" gutterBottom>Historical Trends</Typography>
-      <ResponsiveContainer width="100%" height={280}>
+      <Typography variant="subtitle1" gutterBottom>
+        Historical Trends
+      </Typography>
+      <ResponsiveContainer width="100%" height={335}>
         <LineChart data={historyData}>
-          <Line type="monotone" dataKey="val1" stroke="#1976d2" dot={false} />
-          <Line type="monotone" dataKey="val2" stroke="#d32f2f" dot={false} />
-          <Line type="monotone" dataKey="val3" stroke="#388e3c" dot={false} />
-          <XAxis dataKey="timestamp" />
-          <YAxis />
-          <Tooltip />
+          {/* Use primary, secondary and success palette colors */}
+          <Line
+            type="monotone"
+            dataKey="val1"
+            stroke={theme.palette.primary.main}
+            dot={false}
+          />
+          <Line
+            type="monotone"
+            dataKey="val2"
+            stroke={theme.palette.secondary.main}
+            dot={false}
+          />
+          <Line
+            type="monotone"
+            dataKey="val3"
+            stroke={theme.palette.success.main}
+            dot={false}
+          />
+          <XAxis
+            dataKey="timestamp"
+            stroke={theme.palette.text.secondary}
+          />
+          <YAxis
+            stroke={theme.palette.text.secondary}
+          />
+          <Tooltip
+            contentStyle={{ backgroundColor: theme.palette.background.paper }}
+            labelStyle={{ color: theme.palette.text.primary }}
+          />
         </LineChart>
       </ResponsiveContainer>
     </GlassCard>
@@ -298,28 +417,93 @@ function ManualControl () {
   );
 }
 
+const drawerWidth = 200;
+
 export default function DashboardPage () {
   return (
     <ThemeProvider theme={theme}>
-      <Box sx={{ p: 3, bgcolor: 'background.default', minHeight: '100vh' }}>
-        <Typography variant="h4" gutterBottom color="text.primary">
-          System Overview
-        </Typography>
+      {/* resets browser margins & sets body bgcolor */}
+      <CssBaseline />
 
-        {/* Top & History: boards + history on left, gauge/insights/target on right */}
-        <Grid container spacing={2}>
-          <Grid item xs={12} md={8}>
-            <OverviewSection />
-            <Box sx={{ mt: 2 }}><HistoricalTrends /></Box>
+      {/* outer flex container with dark background */}
+      <Box
+        sx={{
+          display: 'flex',
+          minHeight: '100vh',
+          bgcolor: 'background.default'
+        }}
+      >
+        {/* ← permanent sidebar */}
+        <Drawer
+          variant="permanent"
+          anchor="left"
+          PaperProps={{
+            sx: {
+              width: drawerWidth,
+              bgcolor: 'background.default',
+              color: 'text.primary',
+              borderRight: 'none'
+            }
+          }}
+        >
+          <Toolbar /> {/* spacer to match any AppBar height */}
+          <List>
+            <ListItem button>
+              <ListItemIcon><HomeIcon /></ListItemIcon>
+              <ListItemText primary="Overview" />
+            </ListItem>
+            <ListItem button>
+              <ListItemIcon><DashboardIcon /></ListItemIcon>
+              <ListItemText primary="Boards" />
+            </ListItem>
+            <ListItem button>
+              <ListItemIcon><ChatIcon /></ListItemIcon>
+              <ListItemText primary="Messages" />
+            </ListItem>
+            <ListItem button>
+              <ListItemIcon><SettingsIcon /></ListItemIcon>
+              <ListItemText primary="Settings" />
+            </ListItem>
+          </List>
+        </Drawer>
+
+        {/* → main content, shifted right & narrowed */}
+        <Box
+          component="main"
+          sx={{
+            flexGrow: 1,
+            ml: `${drawerWidth}px`, // push to the right
+            width: `calc(100% - ${drawerWidth}px)`, // prevent overlap
+            p: 3,
+            bgcolor: 'background.default'
+          }}
+        >
+          <Toolbar /> {/* optional spacer */}
+          <Typography variant="h4" gutterBottom>
+            System Overview
+          </Typography>
+
+          <Grid container spacing={2}>
+            <Grid item xs={12} md={8}>
+              <OverviewSection />
+              <Box sx={{ mt: 2 }}>
+                <HistoricalTrends />
+              </Box>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <GaugeInsightsSection />
+            </Grid>
           </Grid>
-          <Grid item xs={12} md={4}><GaugeInsightsSection /></Grid>
-        </Grid>
 
-        {/* Device Management & Manual Control side‑by‑side */}
-        <Grid container spacing={2} sx={{ mt: 2 }}>
-          <Grid item xs={12} md={6}><DeviceManagement /></Grid>
-          <Grid item xs={12} md={6}><ManualControl /></Grid>
-        </Grid>
+          <Grid container spacing={2} sx={{ mt: -1 }}>
+            <Grid item xs={12} md={6}>
+              <DeviceManagement />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <ManualControl />
+            </Grid>
+          </Grid>
+        </Box>
       </Box>
     </ThemeProvider>
   );
