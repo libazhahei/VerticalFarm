@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Box, CssBaseline, Typography, Grid, Toolbar, ThemeProvider } from '@mui/material';
+import { Box, CssBaseline, Typography, Grid, Toolbar, ThemeProvider, Button, Paper } from '@mui/material';
 import Sidebar from '../components/SideBar';
 import OverviewSection from '../components/OverviewSection';
 import HistoricalTrends from '../components/HistoricalTrends';
@@ -7,7 +7,8 @@ import GaugeInsightsSection from '../components/GaugeInsightsSection';
 import DeviceManagement from '../components/DeviceManagement';
 import ManualControl from '../components/ManualControl';
 import theme from '../theme';
-// import { sendRequest } from '../Request';  // ← keep this for when your API is ready
+import PlantInfoDialog from '../components/PlantInfoDialog';
+import { sendRequest } from '../Request';
 
 const fakeData = {
   timestamp: '2025-07-16T10:00:00Z',
@@ -30,6 +31,8 @@ export default function DashboardPage () {
   const drawerWidth = 200;
   const [boards, setBoards] = useState([]);
   const [timestamp, setTimestamp] = useState('');
+  const [plantDialogOpen, setPlantDialogOpen] = useState(false);
+  const [plantInfo, setPlantInfo] = useState(null);
 
   useEffect(() => {
     // Normally: fetch realtime from backend
@@ -43,6 +46,14 @@ export default function DashboardPage () {
     // Using fake data for now
     setTimestamp(fakeData.timestamp);
     setBoards(fakeData.boards);
+
+    sendRequest('api/user/plant_info', 'GET')
+      .then(data => setPlantInfo(data))
+      .catch(() => setPlantInfo({
+        name: 'Lettuce',
+        stage: 'vegetative',
+        remark: 'Leaf slightly yellow, need to observe'
+      }));
   }, []);
   return (
     <ThemeProvider theme={theme}>
@@ -55,9 +66,32 @@ export default function DashboardPage () {
           sx={{ flexGrow: 1, ml: `${drawerWidth}px`, width: `calc(100% - ${drawerWidth}px)`, p: 3 }}
         >
           <Toolbar />
-          <Typography variant="h4" gutterBottom>
-            System Overview
-          </Typography>
+          <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
+            <Typography variant="h4" gutterBottom>
+              System Overview
+            </Typography>
+            <Box display="flex" alignItems="center" gap={2}>
+              <Button
+                variant="outlined"
+                size="small"
+                sx={{ ml: 2 }}
+                onClick={() => setPlantDialogOpen(true)}
+              >
+                Record Plant Information
+              </Button>
+              {plantInfo && (
+                <Paper elevation={0} sx={{ p: 1, bgcolor: 'grey.100', minWidth: 180 }}>
+                  <Typography variant="caption" color="text.secondary">当前作物</Typography>
+                  <Typography variant="body2" noWrap>
+                    {plantInfo.name || '-'} / {plantInfo.stage || '-'}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" noWrap>
+                    {plantInfo.remark || '-'}
+                  </Typography>
+                </Paper>
+              )}
+            </Box>
+          </Box>
           {timestamp && (
             <Typography variant="caption">Last updated: {timestamp}</Typography>
           )}
@@ -93,6 +127,7 @@ export default function DashboardPage () {
 </Grid>
         </Box>
       </Box>
+      <PlantInfoDialog open={plantDialogOpen} onClose={() => setPlantDialogOpen(false)} />
     </ThemeProvider>
   );
 }
