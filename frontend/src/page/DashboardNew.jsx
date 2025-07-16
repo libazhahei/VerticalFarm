@@ -7,6 +7,7 @@ import GaugeInsightsSection from '../components/GaugeInsightsSection';
 import DeviceManagement from '../components/DeviceManagement';
 import ManualControl from '../components/ManualControl';
 import theme from '../theme';
+// import { sendRequest } from '../Request';  // ← keep this for when your API is ready
 
 const fakeData = {
   timestamp: '2025-07-16T10:00:00Z',
@@ -24,32 +25,6 @@ const historyData = [
   { timestamp: '12:00', val1: 24, val2: 26, val3: 22 },
   { timestamp: '14:00', val1: 23, val2: 27, val3: 21 }
 ];
-
-const devices = [
-  { id: 1, status: 'Online', last: '10:45 AM', ip: '192.160.1.10' },
-  { id: 2, status: 'Offline', last: '10:35 AM', ip: '192.18.1.5' },
-  { id: 3, status: 'Online', last: '10:50 AM', ip: '192.10.2.7' }
-];
-
-const insight = {
-  temperature: 25.3,
-  summary: '降湿至<70% 牺牲：10%光合效率',
-  reasoning: '蒸腾加速，湿热易致病害，根系耗氧↑ ↔ 光合↑，可能灯带发热',
-  risk_level: 'high',
-  control_priority: '避免病害风险 & 防热损伤',
-  action_priority: ['风扇至100%强通风', 'LED略调低至9,000 Lux'],
-  suggestion_time: new Date().toLocaleString()
-};
-
-const target = {
-  day_temperature: [18, 20],
-  night_temperature: [16, 18],
-  humidity: [60, 70],
-  PPFD: [200, 250],
-  DLI: [12, 14],
-  Photoperiod: [{ period: '12 hr', light_intensity: 30000 }, { period: '12 hr', light_intensity: 1000 }],
-  data_source: [{ name: 'Hortscience', link: 'https://example.com/hortscience' }]
-};
 
 export default function DashboardPage () {
   const drawerWidth = 200;
@@ -77,12 +52,7 @@ export default function DashboardPage () {
 
         <Box
           component="main"
-          sx={{
-            flexGrow: 1,
-            ml: `${drawerWidth}px`,
-            width: `calc(100% - ${drawerWidth}px)`,
-            p: 3
-          }}
+          sx={{ flexGrow: 1, ml: `${drawerWidth}px`, width: `calc(100% - ${drawerWidth}px)`, p: 3 }}
         >
           <Toolbar />
           <Typography variant="h4" gutterBottom>
@@ -101,18 +71,26 @@ export default function DashboardPage () {
             </Grid>
 
             <Grid item xs={12} md={4}>
-              <GaugeInsightsSection insight={insight} target={target} />
+              {/* Only pass target; GaugeInsightsSection fetches its own data */}
+              <GaugeInsightsSection />
             </Grid>
           </Grid>
 
-          <Grid container spacing={2} sx={{ mt: -1 }}>
-            <Grid item xs={12} md={6}>
-              <DeviceManagement devices={devices} />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <ManualControl />
-            </Grid>
-          </Grid>
+<Grid
+  container
+  spacing={2}
+  sx={{
+    mt: 1,
+    alignItems: 'stretch' // make children stretch to same height
+  }}
+>
+  <Grid item xs={12} md={6} sx={{ display: 'flex' }}>
+    <DeviceManagement sx={{ flexGrow: 1 }} />
+  </Grid>
+  <Grid item xs={12} md={6} sx={{ display: 'flex' }}>
+    <ManualControl sx={{ flexGrow: 1 }} />
+  </Grid>
+</Grid>
         </Box>
       </Box>
     </ThemeProvider>

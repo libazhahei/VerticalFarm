@@ -18,7 +18,7 @@ export default function HistoricalTrends ({ data }) {
   return (
     <GlassCard elevation={1} sx={{ p: 2 }}>
       <Typography variant="subtitle1" gutterBottom>Historical Trends</Typography>
-      <ResponsiveContainer width="100%" height={335}>
+      <ResponsiveContainer width="100%" height={600}>
         <LineChart data={data}>
           <Line type="monotone" dataKey="val1" stroke={theme.palette.primary.main} dot={false} />
           <Line type="monotone" dataKey="val2" stroke={theme.palette.secondary.main} dot={false} />
