@@ -1,13 +1,14 @@
+// src/components/GaugeInsightsSection.jsx
 import React from 'react';
 import { Grid } from '@mui/material';
 import TemperatureGauge from './TemperatureGauge';
 import AIInsights from './AIInsights';
 import AITarget from './AITarget';
 
-export default function GaugeInsightsSection ({ insight, target }) {
+export default function GaugeInsightsSection () {
   return (
     <Grid container spacing={2} direction="column">
-      {/* TemperatureGauge now uses WeatherAPI.com */}
+      {/* TemperatureGauge now fetches internally */}
       <Grid item>
         <TemperatureGauge
           city="Sydney,AU"
@@ -15,12 +16,14 @@ export default function GaugeInsightsSection ({ insight, target }) {
         />
       </Grid>
 
-      {/* the rest of your AI panels */}
+      {/* AIInsights now fetches internally */}
       <Grid item>
-        <AIInsights insight={insight} />
+        <AIInsights />
       </Grid>
+
+      {/* AITarget still takes its static config */}
       <Grid item>
-        <AITarget target={target} />
+        <AITarget />
       </Grid>
     </Grid>
   );

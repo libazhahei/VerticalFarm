@@ -6,10 +6,10 @@ import { styled } from '@mui/material/styles';
 const GlassCard = styled(Card)(({ theme }) => ({
   background: theme.palette.background.paper,
   border: '1px solid rgba(0,0,0,0.12)',
-  boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+  boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
   borderRadius: theme.shape.borderRadius,
   transition: 'transform 0.2s',
-  '&:hover': { transform: 'scale(1.02)' }
+  '&:hover': { transform: 'scale(1.04)' } // slightly bigger hover
 }));
 
 export default function BoardCard ({ board }) {
@@ -20,7 +20,7 @@ export default function BoardCard ({ board }) {
   ];
 
   return (
-    <GlassCard elevation={1} sx={{ p: 2, opacity: board.online ? 1 : 0.5 }}>
+    <GlassCard elevation={1} sx={{ p: 5, minHeight: 200, opacity: board.online ? 1 : 0.5 }}>
       <Box display="flex" alignItems="center" mb={1}>
         <SensorsIcon color="primary" sx={{ mr: 1, fontSize: 36 }} />
         <Typography variant="h6">Board {board.board_id}</Typography>
