@@ -1,12 +1,14 @@
 import asyncio
-from typing import Dict
+
 from attr import dataclass
+from langchain_core.output_parsers import JsonOutputParser
+
 # import openai
 from langchain_core.prompts import PromptTemplate
-from langchain_core.output_parsers import JsonOutputParser
-from langchain_openai import ChatOpenAI 
+from langchain_openai import ChatOpenAI
 from langchain_perplexity import ChatPerplexity
 from pydantic import SecretStr
+
 system_prompt = """
 You are an intelligent assistant specializing in environmental monitoring for indoor vertical farms.
 Based on the provided daily sensor data, please generate a structured report with the following sections:
@@ -49,6 +51,7 @@ class ChainPart1UserInput:
     """
     Represents the user input for the first part of the chain.
     """
+
     plant: str
     growth_stage: str
     target_orientation: str
@@ -67,7 +70,7 @@ class DailyPlan:
         self.preplexity_key = preplexity_key
         self.openai_key = openai_key
 
-    def _search_knowledge(self, curr_status: ChainPart1UserInput) -> Dict:
+    def _search_knowledge(self, curr_status: ChainPart1UserInput) -> dict:
         P1_prompt_template = """
         ## Role and Task
         You are an agricultural science research assistant. 
@@ -123,8 +126,8 @@ class DailyPlan:
         )
         response_1_json = json_parser_p1.invoke(response_1)
         return response_1_json
-    
-    def _prepare_input(self, original_input_json: Dict, p1_output: Dict) -> Dict:
+
+    def _prepare_input(self, original_input_json: dict, p1_output: dict) -> dict:
         return {
         "plant": original_input_json["plant"],
         "growth_stage": original_input_json["growth_stage"],
@@ -151,7 +154,7 @@ class DailyPlan:
         "environmental_humidity": 51  # Example value, adjust as needed
     }
 
-    async def _generate_general_target(self, curr_status: ChainPart1UserInput, p1_output: Dict) -> Dict:
+    async def _generate_general_target(self, curr_status: ChainPart1UserInput, p1_output: dict) -> dict:
         P2_prompt_template = """
 
         ## Role & Context
@@ -243,7 +246,7 @@ class DailyPlan:
         )
         return await response_2
 
-    async def _generate_strategy(self, curr_status: ChainPart1UserInput, p1_output: Dict) -> Dict:
+    async def _generate_strategy(self, curr_status: ChainPart1UserInput, p1_output: dict) -> dict:
         P3_prompt_template = """
         ## Core Task & Role
 
@@ -362,7 +365,7 @@ class DailyPlan:
         )
         return await response_3
 
-    async def generate_daily_plan(self, curr_status: ChainPart1UserInput) -> Dict:
+    async def generate_daily_plan(self, curr_status: ChainPart1UserInput) -> dict:
         """
         Generate a daily plan based on the current status and user input.
         
