@@ -6,6 +6,7 @@ exclude = [
     "**/test_*.py", 
     "**/*_test.py", 
     "**/msg.py",
+    "**/llm/*.py",
     ".venv",
     "venv",
     "env",

@@ -1,6 +1,7 @@
-import socket
 import json
+import socket
 import threading
+
 from ctransformers import AutoModelForCausalLM
 
 HOST = 'localhost'
