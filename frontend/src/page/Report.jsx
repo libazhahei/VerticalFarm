@@ -12,6 +12,12 @@ export default function ReportPage () {
   const [humanTasks, setHumanTasks] = useState([]);
   const [taskLoading, setTaskLoading] = useState(false);
   const [taskError, setTaskError] = useState('');
+  const [verification, setVerification] = useState([]);
+  const [verificationLoading, setVerificationLoading] = useState(false);
+  const [verificationError, setVerificationError] = useState('');
+  const [strategies, setStrategies] = useState([]);
+  const [strategiesLoading, setStrategiesLoading] = useState(false);
+  const [strategiesError, setStrategiesError] = useState('');
 
   useEffect(() => {
     setLoading(true);
@@ -27,6 +33,20 @@ export default function ReportPage () {
       .then(data => setHumanTasks(Array.isArray(data) ? data : (data.tasks || [])))
       .catch(err => setTaskError(err.message))
       .finally(() => setTaskLoading(false));
+
+    setVerificationLoading(true);
+    setVerificationError('');
+    sendRequest('api/ai/verification', 'GET')
+      .then(data => setVerification(Array.isArray(data) ? data : (data.verification || [])))
+      .catch(err => setVerificationError(err.message))
+      .finally(() => setVerificationLoading(false));
+
+    setStrategiesLoading(true);
+    setStrategiesError('');
+    sendRequest('api/ai/short/strategies', 'GET')
+      .then(data => setStrategies(Array.isArray(data) ? data : (data.strategies || [])))
+      .catch(err => setStrategiesError(err.message))
+      .finally(() => setStrategiesLoading(false));
   }, []);
 
   return (
@@ -61,19 +81,64 @@ export default function ReportPage () {
               humanTasks.length > 0
                 ? (
                     <Box component="ul" sx={{ pl: 3, mb: 0 }}>
-                    {humanTasks.map((task, idx) => (
-                      <li key={idx}>
-                        <Typography variant="body1">
-                          <strong>{task.task || 'Task'}:</strong> {task.todo || ''}
-                        </Typography>
-                      </li>
-                    ))}
-                  </Box>
+                      {humanTasks.map((task, idx) => (
+                        <li key={idx}>
+                          <Typography variant="body1">
+                            <strong>{task.task || 'Task'}:</strong> {task.todo || ''}
+                          </Typography>
+                        </li>
+                      ))}
+                    </Box>
                   )
                 : (
-                  <Typography color="text.secondary">No human tasks</Typography>
+                    <Typography color="text.secondary">No human tasks</Typography>
                   )
             )}
+
+            <Box mt={4}>
+              <Typography variant="body1" gutterBottom>Verification List</Typography>
+              {verificationLoading && <Box display="flex" alignItems="center"><CircularProgress size={20} sx={{ mr: 2 }} /> Loading...</Box>}
+              {verificationError && <Alert severity="error">{verificationError}</Alert>}
+              {!verificationLoading && !verificationError && (
+                verification.length > 0
+                  ? (
+                      <Box component="ul" sx={{ pl: 3, mb: 0 }}>
+                        {verification.map((item, idx) => (
+                          <li key={idx}>
+                            <Typography variant="body1">
+                              <strong>{item.task || 'Task'}:</strong> {item.todo || ''}
+                            </Typography>
+                          </li>
+                        ))}
+                      </Box>
+                    )
+                  : (
+                      <Typography color="text.secondary">No verification items</Typography>
+                    )
+              )}
+            </Box>
+            <Box mt={4}>
+              <Typography variant="body1" gutterBottom>AI Strategies List</Typography>
+              {strategiesLoading && <Box display="flex" alignItems="center"><CircularProgress size={20} sx={{ mr: 2 }} /> Loading...</Box>}
+              {strategiesError && <Alert severity="error">{strategiesError}</Alert>}
+              {!strategiesLoading && !strategiesError && (
+                strategies.length > 0
+                  ? (
+                      <Box component="ul" sx={{ pl: 3, mb: 0 }}>
+                        {strategies.map((item, idx) => (
+                          <li key={idx}>
+                            <Typography variant="body1">
+                              <strong>{item.summary || 'Summary'}:</strong> {item.reasoning || ''}
+                            </Typography>
+                          </li>
+                        ))}
+                      </Box>
+                    )
+                  : (
+                      <Typography color="text.secondary">No strategies</Typography>
+                    )
+              )}
+            </Box>
           </Paper>
         </Box>
       </Box>
