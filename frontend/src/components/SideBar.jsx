@@ -20,7 +20,7 @@ export default function Sidebar () {
         {[
           { text: 'Overview', icon: <HomeIcon />, path: '/' },
           { text: 'Device', icon: <DashboardIcon />, path: '/device' },
-          { text: 'Messages', icon: <ChatIcon /> },
+          { text: 'Report', icon: <ChatIcon />, path: '/report' },
           { text: 'Settings', icon: <SettingsIcon /> }
         ].map(({ text, icon, path }) => (
           <ListItem button key={text} onClick={path ? () => navigate(path) : undefined}>

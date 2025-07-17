@@ -44,24 +44,24 @@ export default function DevicePage () {
               Device Management
             </Typography>
             <Button variant="outlined" onClick={fetchDevices} disabled={loading}>
-              {loading ? <CircularProgress size={20} /> : '刷新'}
+              {loading ? <CircularProgress size={20} /> : 'Refresh'}
             </Button>
           </Box>
           {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
           {offlineCount > 0 && (
             <Alert severity="warning" sx={{ mb: 2 }}>
-              有 {offlineCount} 台设备离线，请及时检查！
+              {offlineCount} devices are offline, please check!
             </Alert>
           )}
           <Paper sx={{ p: 2 }}>
             <Box display="flex" fontWeight={600} mb={1}>
               <Box width={100}>Board ID</Box>
-              <Box width={100}>状态</Box>
-              <Box width={180}>上次心跳</Box>
+              <Box width={100}>Status</Box>
+              <Box width={180}>Last Seen</Box>
               <Box width={160}>IP</Box>
             </Box>
             {devices.length === 0
-              ? <Typography color="text.secondary">暂无设备</Typography>
+              ? <Typography color="text.secondary">No devices</Typography>
               : devices.map(d => (
                 <Box key={d.board_id} display="flex" alignItems="center" mb={1}>
                   <Box width={100}>{d.board_id}</Box>
