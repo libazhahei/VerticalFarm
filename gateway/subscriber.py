@@ -5,7 +5,7 @@ from datetime import datetime
 
 from aiorwlock import RWLock
 
-from data.tables import BatchWriter, BoardData
+from data.tables import BoardData, BoardDataBatchWriter
 
 from .constants import DEVICE_MAX_ID, DEVICE_MIN_ID, SUBSCRIBE_HEARTBEAT_TIMEOUT_SECONDS
 from .msg import BLEMessageType, HeartbeatMsg, MessageType, MQTTMessageType, SensorDataMsg, StatusMsg
@@ -229,7 +229,7 @@ class SensorDataSubscriber(BLESubscriber):
             Parses a byte array into a SensorDataMsg object.
     """
 
-    def __init__(self, db_writer: BatchWriter) -> None:
+    def __init__(self, db_writer: BoardDataBatchWriter) -> None:
         """Initializes the SensorDataSubscriber with a BatchWriter instance."""
         self.db_writer = db_writer
 

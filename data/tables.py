@@ -1,4 +1,6 @@
 import asyncio
+from datetime import datetime
+from typing import Optional
 
 from aiorwlock import RWLock
 from tortoise import fields
@@ -32,7 +34,11 @@ class BoardData(Model):
         ordering = ["-timestamp"]
         unique_together = (("board_id", "timestamp"),)
 
-class BatchWriter:
+
+global db_writer
+db_writer: Optional['BoardDataBatchWriter'] = None 
+
+class BoardDataBatchWriter:
     """
     A class to handle batch writing of BoardData objects to the database.
     This class uses a buffer to collect data and writes it in batches to optimize database operations.
@@ -44,6 +50,7 @@ class BatchWriter:
     lock: RWLock
     _flush_worker: asyncio.Task | None
     _stop_event: asyncio.Event
+    boards_ids: set[int]
 
     def __init__(self, batch_size: int = BATCH_SIZE, timeout: int = BATCH_TIMEOUT_MS) -> None:
         """
@@ -68,6 +75,25 @@ class BatchWriter:
         self.lock = RWLock()
         self._flush_worker: asyncio.Task | None = None
         self._stop_event = asyncio.Event()
+        self.boards_ids = set()
+
+    @classmethod
+    def get_instance(cls, batch_size: int = BATCH_SIZE, timeout: int = BATCH_TIMEOUT_MS) -> "BoardDataBatchWriter":
+        """
+        Returns the singleton instance of BatchWriter.
+
+        This method checks if the global `db_writer` variable is None, and if so,
+        initializes it with a new instance of BatchWriter. It then returns the instance.
+
+        Returns:
+            BatchWriter: The singleton instance of BatchWriter.
+
+        """
+        global db_writer
+        if db_writer is None:
+            db_writer = cls(batch_size=batch_size, timeout=timeout)
+        return db_writer
+
 
     async def start(self) -> None:
         """
@@ -149,6 +175,8 @@ class BatchWriter:
 
         """
         should_flush = False
+        if data.board_id not in self.boards_ids:
+            self.boards_ids.add(data.board_id)
 
         async with self.lock.writer_lock:
             self.buffer.append(data)
@@ -212,3 +240,28 @@ class BatchWriter:
         async with self.lock.writer_lock:
             self.buffer.clear()
 
+    async def fetch_since(self, since: datetime, board_ids: list[int] | None) -> list[BoardData]:
+        """
+        Fetches data from the buffer since a specified timestamp for given board IDs.
+
+        Args:
+            since (datetime): The timestamp from which to fetch data.
+            board_ids (list[int]): A list of board IDs to filter the data.
+
+        Returns:
+            List[BoardData]: A list of BoardData objects that match the criteria.
+
+        """
+        db_query = BoardData.filter(timestamp__gte=since)
+        if board_ids:
+            db_query = db_query.filter(board_id__in=board_ids)
+
+        db_data = await db_query.order_by("-timestamp").all()
+
+        buf_data = await self.fetch()
+        filtered_buf_data = [
+            data for data in buf_data
+            if data.timestamp is not None and data.timestamp >= since and (not board_ids or data.board_id in board_ids)
+        ]
+        filtered_buf_data.sort(key=lambda x: x.timestamp, reverse=True)
+        return db_data + filtered_buf_data

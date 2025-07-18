@@ -10,7 +10,7 @@ from bleak.backends.device import BLEDevice
 from bleak.exc import BleakError
 from paho.mqtt.client import Client, MQTTMessage
 
-from data.tables import BatchWriter, BoardData
+from data.tables import BoardData, BoardDataBatchWriter
 
 from .constants import (
     DEVICE_PREFIX,
@@ -780,7 +780,7 @@ class BLEServiceContext:
     ble_client: BLEClientWrapper
     is_running: bool
     _asyncio_loop: asyncio.AbstractEventLoop | None
-    batch_writer: BatchWriter
+    batch_writer: BoardDataBatchWriter
 
     def __init__(self, device_id_list: list[int] ) -> None:
         """
@@ -800,7 +800,7 @@ class BLEServiceContext:
 
         """
         self.msg_dispatcher = MessageDispatcher()
-        self.batch_writer = BatchWriter()
+        self.batch_writer = BoardDataBatchWriter.get_instance()
         self.ble_sub = SensorDataSubscriber(self.batch_writer)
         self.ble_client = BLEClientWrapper(
             device_id_lists=device_id_list,
@@ -895,18 +895,6 @@ class BLEServiceContext:
             List[BoardData]: Sorted (descending) BoardData list.
 
         """
-        db_query = BoardData.filter(timestamp__gte=since)
-        if board_ids:
-            db_query = db_query.filter(board_id__in=board_ids)
-
-        db_data = await db_query.order_by("-timestamp").all()
-
-        buf_data = await self.batch_writer.fetch()
-        filtered_buf_data = [
-            data for data in buf_data
-            if data.timestamp is not None and data.timestamp >= since and (not board_ids or data.board_id in board_ids)
-        ]
-        filtered_buf_data.sort(key=lambda x: x.timestamp, reverse=True)
-        return db_data + filtered_buf_data
+        return await self.batch_writer.fetch_since(since, board_ids)
 
 
