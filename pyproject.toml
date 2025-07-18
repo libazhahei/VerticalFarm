@@ -68,6 +68,8 @@ lint.ignore = [
     "ANN401", # Dynamically typed expressions are disallowed 
     "C901", # Function is too complex 
     "RUF012", # Unused variable
+    "PLW0603", 
+    "PLW0604", 
     # 如果你不想强制所有函数都带类型注解，可以忽略 ANN001, ANN201, ANN202 等
     # "ANN001", # Missing type annotation for function argument
     # "ANN201", # Missing return type annotation for public function

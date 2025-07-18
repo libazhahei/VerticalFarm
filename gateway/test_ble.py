@@ -10,7 +10,7 @@ import gateway.service as service_mod
 from gateway.service import BLEClientWrapper, BLEServiceContext
 from gateway.msg import SensorDataMsg, MQTTMessageType
 from gateway.subscriber import MessageDispatcher, SensorDataSubscriber
-from data.tables import BoardData, BatchWriter
+from data.tables import BoardData, BoardDataBatchWriter
 
 
 @pytest.mark.asyncio
