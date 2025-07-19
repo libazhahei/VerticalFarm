@@ -18,12 +18,20 @@ const fakeData = {
     { board_id: 4, temperature: 23.8, humidity: 72, light: 610, fan: 1, led: 1, online: false }
   ]
 };
-
 const historyData = [
-  { timestamp: '08:00', val1: 22, val2: 24, val3: 20 },
-  { timestamp: '10:00', val1: 23, val2: 25, val3: 21 },
-  { timestamp: '12:00', val1: 24, val2: 26, val3: 22 },
-  { timestamp: '14:00', val1: 23, val2: 27, val3: 21 }
+  { timestamp: '06:00', temperature: 20.1, humidity: 80, light: 150 },
+  { timestamp: '07:00', temperature: 21.3, humidity: 78, light: 300 },
+  { timestamp: '08:00', temperature: 22.5, humidity: 75, light: 450 },
+  { timestamp: '09:00', temperature: 23.8, humidity: 72, light: 600 },
+  { timestamp: '10:00', temperature: 25.2, humidity: 68, light: 750 },
+  { timestamp: '11:00', temperature: 26.0, humidity: 65, light: 900 },
+  { timestamp: '12:00', temperature: 27.1, humidity: 62, light: 1050 },
+  { timestamp: '13:00', temperature: 27.8, humidity: 60, light: 1150 },
+  { timestamp: '14:00', temperature: 27.5, humidity: 61, light: 1100 },
+  { timestamp: '15:00', temperature: 26.9, humidity: 63, light: 950 },
+  { timestamp: '16:00', temperature: 26.2, humidity: 66, light: 800 },
+  { timestamp: '17:00', temperature: 25.0, humidity: 70, light: 600 },
+  { timestamp: '18:00', temperature: 23.7, humidity: 75, light: 400 },
 ];
 
 export default function DashboardPage () {

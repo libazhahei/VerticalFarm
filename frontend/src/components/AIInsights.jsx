@@ -32,11 +32,14 @@ export default function AIInsights () {
 
     // —— Fake data for development ——
     const fake = {
-      summary: '降湿至<70% 牺牲: 10%光合效率',
-      reasoning: '蒸腾加速，湿热易致病害，根系耗氧↑ ↔ 光合↑，可能灯带发热',
+      summary: 'Lower humidity <70% with 10% loss in efficiency.',
+      reasoning: 'Faster transpiration reduces disease but raises root O₂ demand; LEDs add heat.',
       risk_level: 'high',
-      control_priority: '避免病害风险 & 防热损伤',
-      action_priority: ['风扇至100%强通风', 'LED略调低至9,000 Lux'],
+      control_priority: 'Prevent disease & avoid heat stress',
+      action_priority: [
+        'Set fan to 80% for better airflow',
+        'Reduce LED to 9,000 Lux'
+      ],
       suggestion_time: new Date().toISOString()
     };
     setInsight(fake);
