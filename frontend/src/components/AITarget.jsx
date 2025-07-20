@@ -19,6 +19,7 @@ const GlassCard = styled(Card)(({ theme }) => ({
   border: '1px solid rgba(0,0,0,0.12)',
   boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
   borderRadius: theme.shape.borderRadius,
+  '&:hover': { transform: 'scale(1.02)' }
 }));
 
 export default function AITarget () {
