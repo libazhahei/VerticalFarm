@@ -16,7 +16,7 @@ const fakeData = {
     { board_id: 2, temperature: 26.1, humidity: 65, light: 450, fan: 0, led: 1, online: true },
     { board_id: 3, temperature: 23.8, humidity: 72, light: 610, fan: 1, led: 1, online: false },
     { board_id: 4, temperature: 23.8, humidity: 72, light: 610, fan: 1, led: 1, online: false }
-  ]
+  ]x
 };
 const historyData = [
   { timestamp: '06:00', temperature: 20.1, humidity: 80, light: 150 },
