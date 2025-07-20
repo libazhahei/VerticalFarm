@@ -24,37 +24,33 @@ export default function TemperatureGauge ({
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const fetchWeather = async () => {
-      try {
-        // WeatherAPI.com endpoint
-        const res = await fetch(
-          `https://api.weatherapi.com/v1/current.json?key=${apiKey}&q=${encodeURIComponent(city)}&aqi=no`
-        );
-
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-        }
-
-        const data = await res.json();
-
-        // Check if the response contains an error
-        if (data.error) {
-          throw new Error(data.error.message);
-        }
-
-        // WeatherAPI.com response structure
-        setTemperature(Math.round(data.current.temp_c * 10) / 10);
-        setLastUpdate(new Date(data.current.last_updated));
-        setError(null);
-      } catch (err) {
-        console.error('Fetch error:', err);
-        setError(err.message);
-        setTemperature(null);
-        setLastUpdate(null);
-      }
-    };
-
-    fetchWeather();
+    // const fetchWeather = async () => {
+    //   try {
+    //     // WeatherAPI.com endpoint
+    //     const res = await fetch(
+    //       `https://api.weatherapi.com/v1/current.json?key=${apiKey}&q=${encodeURIComponent(city)}&aqi=no`
+    //     );
+    //     if (!res.ok) {
+    //       throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    //     }
+    //     const data = await res.json();
+    //     if (data.error) {
+    //       throw new Error(data.error.message);
+    //     }
+    //     setTemperature(Math.round(data.current.temp_c * 10) / 10);
+    //     setLastUpdate(new Date(data.current.last_updated));
+    //     setError(null);
+    //   } catch (err) {
+    //     console.error('Fetch error:', err);
+    //     setError(err.message);
+    //     setTemperature(null);
+    //     setLastUpdate(null);
+    //   }
+    // };
+    // fetchWeather();
+    setTemperature(24.5);
+    setLastUpdate(new Date());
+    setError(null);
   }, [city, apiKey]);
 
   if (error) {

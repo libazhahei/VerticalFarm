@@ -29,17 +29,14 @@ export default function AIInsights () {
     //   }
     // };
     // fetchInsights();
-
-    // —— Fake data for development ——
-    const fake = {
-      summary: '降湿至<70% 牺牲: 10%光合效率',
-      reasoning: '蒸腾加速，湿热易致病害，根系耗氧↑ ↔ 光合↑，可能灯带发热',
+    setInsight({
+      summary: 'Reduce humidity to <70%, sacrifice: 10% photosynthetic efficiency',
+      reasoning: 'Transpiration accelerates, high humidity and heat can cause diseases, root oxygen consumption ↑ ↔ photosynthesis ↑, possible heat from LED strips',
       risk_level: 'high',
-      control_priority: '避免病害风险 & 防热损伤',
-      action_priority: ['风扇至100%强通风', 'LED略调低至9,000 Lux'],
+      control_priority: 'Avoid disease risk & prevent heat damage',
+      action_priority: ['Fan to 100% for strong ventilation', 'Slightly lower LED to 9,000 Lux'],
       suggestion_time: new Date().toISOString()
-    };
-    setInsight(fake);
+    });
   }, []);
 
   if (!insight) {

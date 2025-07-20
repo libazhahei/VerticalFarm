@@ -13,7 +13,6 @@ import {
   Alert
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
-import { sendRequest } from '../Request';
 
 const GlassCard = styled(Card)(({ theme }) => ({
   background: theme.palette.background.paper,
@@ -36,19 +35,23 @@ export default function ManualControl (props) {
 
   const handleConfirm = async () => {
     setLoading(true);
-    try {
-      await sendRequest('api/control', 'POST', {
-        mode,
-        temperature,
-        humidity,
-        light
-      });
-      setSnackbar({ open: true, severity: 'success', message: 'Control settings updated' });
-    } catch (err) {
-      setSnackbar({ open: true, severity: 'error', message: err.message });
-    } finally {
+    // try {
+    //   await sendRequest('api/control', 'POST', {
+    //     mode,
+    //     temperature,
+    //     humidity,
+    //     light
+    //   });
+    //   setSnackbar({ open: true, severity: 'success', message: 'Control settings updated' });
+    // } catch (err) {
+    //   setSnackbar({ open: true, severity: 'error', message: err.message });
+    // } finally {
+    //   setLoading(false);
+    // }
+    setTimeout(() => {
+      setSnackbar({ open: true, severity: 'success', message: 'Control settings updated (fake)' });
       setLoading(false);
-    }
+    }, 500);
   };
 
   return (

@@ -26,18 +26,6 @@ export default function AITarget () {
   const [target, setTarget] = useState(null);
 
   useEffect(() => {
-    // Real API call (commented until ready):
-    // const fetchTarget = async () => {
-    //   try {
-    //     const data = await sendRequest('api/ai/target', 'GET');
-    //     setTarget(data);
-    //   } catch (err) {
-    //     console.error(err);
-    //   }
-    // };
-    // fetchTarget();
-
-    // —— Fake data for now ——
     const fake = {
       day_temperature: [18, 20],
       night_temperature: [16, 18],

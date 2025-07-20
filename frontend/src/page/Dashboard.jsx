@@ -8,7 +8,6 @@ import DeviceManagement from '../components/DeviceManagement';
 import ManualControl from '../components/ManualControl';
 import theme from '../theme';
 import PlantInfoDialog from '../components/PlantInfoDialog';
-import { sendRequest } from '../Request';
 
 const fakeData = {
   timestamp: '2025-07-16T10:00:00Z',
@@ -47,13 +46,18 @@ export default function DashboardPage () {
     setTimestamp(fakeData.timestamp);
     setBoards(fakeData.boards);
 
-    sendRequest('api/user/plant_info', 'GET')
-      .then(data => setPlantInfo(data))
-      .catch(() => setPlantInfo({
-        name: 'Lettuce',
-        stage: 'vegetative',
-        remark: 'Leaf slightly yellow, need to observe'
-      }));
+    // sendRequest('api/user/plant_info', 'GET')
+    //   .then(data => setPlantInfo(data))
+    //   .catch(() => setPlantInfo({
+    //     name: 'Lettuce',
+    //     stage: 'vegetative',
+    //     remark: 'Leaf slightly yellow, need to observe'
+    //   }));
+    setPlantInfo({
+      name: 'Lettuce',
+      stage: 'vegetative',
+      remark: 'Leaf slightly yellow, need to observe'
+    });
   }, []);
   return (
     <ThemeProvider theme={theme}>
@@ -81,7 +85,7 @@ export default function DashboardPage () {
               </Button>
               {plantInfo && (
                 <Paper elevation={0} sx={{ p: 1, bgcolor: 'grey.100', minWidth: 180 }}>
-                  <Typography variant="caption" color="text.secondary">当前作物</Typography>
+                  <Typography variant="caption" color="text.secondary">current plant</Typography>
                   <Typography variant="body2" noWrap>
                     {plantInfo.name || '-'} / {plantInfo.stage || '-'}
                   </Typography>

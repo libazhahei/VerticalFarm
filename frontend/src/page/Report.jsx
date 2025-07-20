@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { Box, Typography, CssBaseline, Toolbar, ThemeProvider, Paper, CircularProgress, Alert } from '@mui/material';
 import Sidebar from '../components/SideBar';
 import theme from '../theme';
-import { sendRequest } from '../Request';
 
 export default function ReportPage () {
   const drawerWidth = 200;
@@ -20,33 +19,25 @@ export default function ReportPage () {
   const [strategiesError, setStrategiesError] = useState('');
 
   useEffect(() => {
-    setLoading(true);
+    setReport('The overall environmental control today is good. It is recommended to maintain the current strategy.');
+    setLoading(false);
     setError('');
-    sendRequest('api/ai/report', 'GET')
-      .then(data => setReport(data.report || ''))
-      .catch(err => setError(err.message))
-      .finally(() => setLoading(false));
-
-    setTaskLoading(true);
+    setHumanTasks([
+      { task: 'Root Inspection', todo: 'Check if the plant roots are white and net-like (browning indicates overwatering)' },
+      { task: 'Pruning', todo: 'Prune aging leaves in time' }
+    ]);
+    setTaskLoading(false);
     setTaskError('');
-    sendRequest('api/ai/human_task', 'GET')
-      .then(data => setHumanTasks(Array.isArray(data) ? data : (data.tasks || [])))
-      .catch(err => setTaskError(err.message))
-      .finally(() => setTaskLoading(false));
-
-    setVerificationLoading(true);
+    setVerification([
+      { task: 'Compact Plant Shape Success Criteria', todo: 'Stem height ≤5cm, leaf width ≥2x stem diameter' }
+    ]);
+    setVerificationLoading(false);
     setVerificationError('');
-    sendRequest('api/ai/verification', 'GET')
-      .then(data => setVerification(Array.isArray(data) ? data : (data.verification || [])))
-      .catch(err => setVerificationError(err.message))
-      .finally(() => setVerificationLoading(false));
-
-    setStrategiesLoading(true);
+    setStrategies([
+      { summary: 'Reduce humidity to <70%, sacrifice: 10% photosynthetic efficiency', reasoning: 'Transpiration accelerates, high humidity and heat can cause diseases, root oxygen consumption ↑ ↔ photosynthesis ↑, possible heat from LED strips' }
+    ]);
+    setStrategiesLoading(false);
     setStrategiesError('');
-    sendRequest('api/ai/short/strategies', 'GET')
-      .then(data => setStrategies(Array.isArray(data) ? data : (data.strategies || [])))
-      .catch(err => setStrategiesError(err.message))
-      .finally(() => setStrategiesLoading(false));
   }, []);
 
   return (

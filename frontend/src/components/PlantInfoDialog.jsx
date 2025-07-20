@@ -3,7 +3,7 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, Button, Box, CircularProgress, Alert
 } from '@mui/material';
-import { sendRequest } from '../Request';
+// import { sendRequest } from '../Request';
 
 export default function PlantInfoDialog ({ open, onClose }) {
   const [plantName, setPlantName] = useState('');
@@ -19,14 +19,20 @@ export default function PlantInfoDialog ({ open, onClose }) {
       setFetching(true);
       setError('');
       setSuccess('');
-      sendRequest('api/user/plant_info', 'GET')
-        .then(data => {
-          setPlantName(data.name || '');
-          setStage(data.stage || '');
-          setRemark(data.remark || '');
-        })
-        .catch(err => setError(err.message))
-        .finally(() => setFetching(false));
+      // sendRequest('api/user/plant_info', 'GET')
+      //   .then(data => {
+      //     setPlantName(data.name || '');
+      //     setStage(data.stage || '');
+      //     setRemark(data.remark || '');
+      //   })
+      //   .catch(err => setError(err.message))
+      //   .finally(() => setFetching(false));
+      setTimeout(() => {
+        setPlantName('Lettuce');
+        setStage('vegetative');
+        setRemark('Slightly yellow leaves, need to observe.');
+        setFetching(false);
+      }, 500);
     }
   }, [open]);
 
@@ -35,18 +41,22 @@ export default function PlantInfoDialog ({ open, onClose }) {
     setLoading(true);
     setError('');
     setSuccess('');
-    try {
-      await sendRequest('api/user/plant_info', 'POST', {
-        name: plantName,
-        stage,
-        remark
-      });
+    // try {
+    //   await sendRequest('api/user/plant_info', 'POST', {
+    //     name: plantName,
+    //     stage,
+    //     remark
+    //   });
+    //   setSuccess('Plant information saved!');
+    // } catch (err) {
+    //   setError(err.message);
+    // } finally {
+    //   setLoading(false);
+    // }
+    setTimeout(() => {
       setSuccess('Plant information saved!');
-    } catch (err) {
-      setError(err.message);
-    } finally {
       setLoading(false);
-    }
+    }, 500);
   };
 
   const handleClose = () => {

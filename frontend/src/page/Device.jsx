@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { Box, Typography, Paper, Button, Chip, CircularProgress, Alert, CssBaseline, Toolbar, ThemeProvider } from '@mui/material';
 import Sidebar from '../components/SideBar';
 import theme from '../theme';
-import { sendRequest } from '../Request';
 
 export default function DevicePage () {
   const drawerWidth = 200;
@@ -13,14 +12,12 @@ export default function DevicePage () {
   const fetchDevices = async () => {
     setLoading(true);
     setError('');
-    try {
-      const data = await sendRequest('api/devices', 'GET');
-      setDevices(data.devices || data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    setDevices([
+      { board_id: 1, status: 'online', last_seen: '10:45 AM', uuid: 'A1B2-C3D4-E5F6' },
+      { board_id: 2, status: 'offline', last_seen: '10:35 AM', uuid: 'B2C3-D4E5-F6A1' },
+      { board_id: 3, status: 'online', last_seen: '10:50 AM', uuid: 'C3D4-E5F6-A1B2' }
+    ]);
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -58,7 +55,7 @@ export default function DevicePage () {
               <Box width={100}>Board ID</Box>
               <Box width={100}>Status</Box>
               <Box width={180}>Last Seen</Box>
-              <Box width={160}>IP</Box>
+              <Box width={160}>UUID</Box>
             </Box>
             {devices.length === 0
               ? <Typography color="text.secondary">No devices</Typography>
@@ -74,7 +71,7 @@ export default function DevicePage () {
                     />
                   </Box>
                   <Box width={180}>{d.last_seen || '-'}</Box>
-                  <Box width={160}>{d.ip || '-'}</Box>
+                  <Box width={160}>{d.uuid || '-'}</Box>
                 </Box>
               ))}
           </Paper>
