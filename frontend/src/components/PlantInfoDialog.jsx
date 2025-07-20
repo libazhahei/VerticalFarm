@@ -66,7 +66,8 @@ export default function PlantInfoDialog ({ open, onClose }) {
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth
+      PaperProps={{ sx: { backgroundColor: 'background.default' } }}>
       <DialogTitle>Record Current Plant Information</DialogTitle>
       <DialogContent>
         {fetching

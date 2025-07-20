@@ -84,12 +84,12 @@ export default function DashboardPage () {
                 Record Plant Information
               </Button>
               {plantInfo && (
-                <Paper elevation={0} sx={{ p: 1, bgcolor: 'grey.100', minWidth: 180 }}>
+                <Paper elevation={0} sx={{ p: 1, bgcolor: 'background.paper', minWidth: 180 }}>
                   <Typography variant="caption" color="text.secondary">current plant</Typography>
                   <Typography variant="body2" noWrap>
                     {plantInfo.name || '-'} / {plantInfo.stage || '-'}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary" noWrap>
+                  <Typography variant="body2" color="text.primary" noWrap>
                     {plantInfo.remark || '-'}
                   </Typography>
                 </Paper>
