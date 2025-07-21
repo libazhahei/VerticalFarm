@@ -10,13 +10,13 @@ class GlobalContext:
     """
 
     # Singleton instance
-    mqtt_service_context: MQTTServiceContext
-    ble_service_context: BLEServiceContext
+    mqtt_service_context: MQTTServiceContext | None
+    ble_service_context: BLEServiceContext | None
 
     global_context: Optional["GlobalContext"] = None
 
     @classmethod
-    def get_instance(cls, mqtt_service_context: MQTTServiceContext, ble_service_context: BLEServiceContext) -> "GlobalContext":
+    def get_instance(cls, mqtt_service_context: MQTTServiceContext | None = None, ble_service_context: BLEServiceContext | None = None) -> "GlobalContext":
         """Get the singleton instance of GlobalContext."""
         if cls.global_context is not None:  
             return cls.global_context
