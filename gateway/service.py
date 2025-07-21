@@ -22,7 +22,7 @@ from .constants import (
     SUBSCRIBE_HEARTBEAT_TOPIC,
     get_characteristic_uuid,
 )
-from .msg import BLEMessageType, ControlMsg, HeartbeatMsg, MQTTMessageType, StatusMsg
+from .msg import BLEMessageType, ControlMsg, HeartbeatMsg, MQTTMessageType, SensorDataMsg, StatusMsg
 from .publisher import ControlCommandPublisher
 from .subscriber import (
     CommandResponseSubscriber,
@@ -538,7 +538,7 @@ class BLEClientWrapper:
             None
 
         """
-        self._characteristic_parsers[board_id] = handler
+        self._characteristic_parsers[get_characteristic_uuid(board_id)] = handler
 
     async def on_ble_notification(self, characteristic: BleakGATTCharacteristic , data: bytearray) -> None:
         """
@@ -807,7 +807,7 @@ class BLEServiceContext:
             dispatcher=self.msg_dispatcher
         )
         self.msg_dispatcher.register_handler(
-            MQTTMessageType, self.ble_sub.handle
+            SensorDataMsg, self.ble_sub.handle
         )
         for device_id in device_id_list:
             self.ble_client.register_notification_handler(
