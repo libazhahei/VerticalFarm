@@ -36,11 +36,12 @@ async def test_control_command_publisher_add_msg_and_acknowledge(monkeypatch):
     publisher = ControlCommandPublisher(mqtt_client, is_alive_func)
     msg = ControlMsg(board_id=1, fan=10, led=20, temperature=25.0, light_intensity=50.0)
     monkeypatch.setattr(publisher, "safe_publish", lambda m, t: True)
-    task = asyncio.create_task(publisher.add_msg(msg, "ctrl"))
+    task = await publisher.add_msg(msg, "ctrl")
+    assert msg.get_message_id() in [_msg.payload.get_message_id() for _msg in publisher.msgs.values()]
     await asyncio.sleep(0.05)
     publisher.acknowledge(msg.get_message_id())
     await asyncio.sleep(0.05)
-    assert msg.get_message_id() not in publisher.msgs
+    assert msg.get_message_id() not in [_msg.payload.get_message_id() for _msg in publisher.msgs.values()]
 
 @pytest.mark.asyncio
 async def test_control_command_publisher_add_msg_type_error():

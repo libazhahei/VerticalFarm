@@ -1,7 +1,7 @@
 import logging
 import os
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, Tuple
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,12 +15,42 @@ from route.ai import ai_router
 from route.history import history_router
 from route.others import other_router
 from route.utils import GlobalContext
+import gateway.service as service_mod
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(filename)s:%(lineno)d in %(funcName)s: %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+MQTT_BROKER_HOST = "localhost"
+MQTT_BROKER_PORT = 1883
+MQTT_CLIENT_ID = "test_client"
+BLE_DEVICES = [1, 2, 3]  # Example BLE devices
+FAKE_LOWER_COMPUTER_COMMUNICATION = True  # Set to True for testing purposes
+
+async def fake_lower_computer_services(mqtt: MQTTServiceContext, ble: BLEServiceContext) -> Tuple[MQTTServiceContext, BLEServiceContext]:
+    """Simulate lower computer communication for testing purposes."""
+    if FAKE_LOWER_COMPUTER_COMMUNICATION:
+        logger.info("Simulating lower computer communication.")
+        from unittest.mock import MagicMock, AsyncMock, patch
+        # MQTT Simulation
+        fake_device = MagicMock()
+        fake_device.name = "CropWaifu-Board-1"
+        fake_device.address = "00:11:22:33:44:55"
+        ble.ble_client.ble_devices = {1: fake_device}
+        ble.ble_client.is_running = True
+        ble.ble_client.connection_tasks = {1: MagicMock()}
+        ble.ble_client.ble_clients = {1: MagicMock(is_connected=True)}
+
+        # MQTT Simulation
+        mqtt.control_cmd_pub.safe_publish = MagicMock(return_value=True)
+        mqtt.heartbeat_sub.get_alive_devices = AsyncMock(return_value=[1, 2, 3])
+        mqtt.is_connected = MagicMock(return_value=True)
+    else:   
+        await mqtt.start()
+        await ble.start()
+    return mqtt, ble
 
 @asynccontextmanager # type: ignore
 async def lifespan(app: FastAPI) -> Any:
@@ -38,13 +68,14 @@ async def lifespan(app: FastAPI) -> Any:
     )
     await cache.refresh_plan(planner, user_setting, demo=True)
     mqtt_service = MQTTServiceContext(
-        broker_host="localhost",
-        broker_port=1883,
-        client_id="test_client"
+        broker_host=MQTT_BROKER_HOST,
+        broker_port=MQTT_BROKER_PORT,
+        client_id=MQTT_CLIENT_ID
     )
-    await mqtt_service.start()
-    ble_service = BLEServiceContext([1, 2, 3])
-    await ble_service.start()
+    # await mqtt_service.start()
+    ble_service = BLEServiceContext(BLE_DEVICES)
+    # await ble_service.start()
+    mqtt_service, ble_service = await fake_lower_computer_services(mqtt_service, ble_service)
     GlobalContext.get_instance(mqtt_service_context=mqtt_service, ble_service_context=ble_service)
     yield
 

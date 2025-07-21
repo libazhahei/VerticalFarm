@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from typing import Optional
 
 from paho.mqtt.client import MQTT_ERR_SUCCESS, Client as MQTTClient
 
@@ -45,6 +46,12 @@ class QueueMessage:
             stop_event=data["stop_event"],
             retries_left=data["retries_left"]
         )
+    
+    def get_message_id(self) -> Optional[int]:
+        """Returns the message ID from the payload."""
+        return self.payload.get_message_id() if self.payload else None
+    
+
 
 
 class ControlCommandPublisher:
@@ -212,7 +219,7 @@ class ControlCommandPublisher:
 
         """
         if message_id not in self.msgs:
-            return
+            raise ValueError(f"Message ID {message_id} not found in msgs.")
         msg_info = self.msgs[message_id]
 
         while msg_info.retries_left > 0:

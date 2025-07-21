@@ -64,14 +64,17 @@ async def test_ble_client_wrapper_on_ble_notification_dispatch(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_ble_service_context_start_stop():
+async def test_ble_service_context_start_stop(monkeypatch):
     with patch.object(service_mod, "BLEClientWrapper") as MockBLEClientWrapper, \
-         patch.object(service_mod, "BatchWriter") as MockBatchWriter, \
+         patch.object(service_mod, "BoardDataBatchWriter") as MockBatchWriter, \
          patch.object(service_mod, "MessageDispatcher") as MockMessageDispatcher, \
          patch.object(service_mod, "SensorDataSubscriber") as MockSensorDataSubscriber:
         fake_batch_writer = MockBatchWriter.return_value
         fake_batch_writer.start = AsyncMock()
         fake_batch_writer.stop = AsyncMock()
+        fake_batch_writer.fetch = AsyncMock(return_value=[])
+        fake_batch_writer.fetch_since = AsyncMock(return_value=[])
+        monkeypatch.setattr(service_mod.BoardDataBatchWriter, "get_instance", lambda: fake_batch_writer)
         fake_msg_dispatcher = MockMessageDispatcher.return_value
         fake_msg_dispatcher.start = AsyncMock()
         fake_msg_dispatcher.stop = AsyncMock()
@@ -96,18 +99,22 @@ def test_ble_service_context_connected_devices():
 
 
 @pytest.mark.asyncio
-async def test_ble_service_context_fetch_data():
+async def test_ble_service_context_fetch_data(monkeypatch):
     with patch.object(service_mod, "BoardData") as MockBoardData, \
-         patch.object(service_mod, "BatchWriter") as MockBatchWriter:
+         patch.object(service_mod, "BoardDataBatchWriter") as MockBatchWriter:
         fake_query = MagicMock()
         fake_query.filter.return_value = fake_query
         fake_query.order_by.return_value.all = AsyncMock(return_value=[BoardData(board_id=1, temperature=25.0, light_intensity=100, humidity=50)])
         MockBoardData.filter.return_value = fake_query
+        fake_batch_writer = MockBatchWriter.return_value
+        # fake_batch_writer.fetch_since = AsyncMock(return_value=[BoardData(board_id=1, temperature=25.0, light_intensity=100, humidity=50)])
+        monkeypatch.setattr(service_mod.BoardDataBatchWriter, "get_instance", lambda: fake_batch_writer)
 
         ctx = BLEServiceContext([1])
         buffer_data = BoardData(board_id=1, temperature=26.0, light_intensity=101, humidity=51)
         buffer_data.timestamp = datetime.now()
-        ctx.batch_writer.fetch = AsyncMock(return_value=[buffer_data])
+        ctx.batch_writer.fetch_since = AsyncMock(return_value=[buffer_data] + [BoardData(board_id=1, temperature=25.0, light_intensity=100, humidity=50)])
+        
 
         since = datetime.now() - timedelta(days=1)
         data = await ctx.fetch_data(since, [1])
@@ -115,9 +122,9 @@ async def test_ble_service_context_fetch_data():
         assert any(d.temperature == 26.0 for d in data)
 
 @pytest.mark.asyncio
-async def test_ble_service_context_fetch_data_from_database():
+async def test_ble_service_context_fetch_data_from_database(monkeypatch):
     with patch.object(service_mod, "BoardData") as MockBoardData, \
-            patch.object(service_mod, "BatchWriter") as MockBatchWriter:
+            patch.object(service_mod, "BoardDataBatchWriter") as MockBatchWriter:
         fake_query = MagicMock()
         fake_query.filter.return_value = fake_query
         fake_query.order_by.return_value.all = AsyncMock(return_value=[
@@ -126,7 +133,13 @@ async def test_ble_service_context_fetch_data_from_database():
         ])
         MockBoardData.filter.return_value = fake_query
 
-        MockBatchWriter.return_value.fetch = AsyncMock(return_value=[])
+        fake_batch_writer = MockBatchWriter.return_value
+        fake_batch_writer.fetch = AsyncMock(return_value=[])
+        fake_batch_writer.fetch_since = AsyncMock(return_value=[
+            BoardData(board_id=1, temperature=25.0, light_intensity=100, humidity=50, timestamp=datetime.now() - timedelta(hours=1)),
+            BoardData(board_id=2, temperature=22.0, light_intensity=90, humidity=45, timestamp=datetime.now() - timedelta(hours=2))
+        ])
+        monkeypatch.setattr(service_mod.BoardDataBatchWriter, "get_instance", lambda: fake_batch_writer)
 
         ctx = BLEServiceContext([1, 2])
         since = datetime.now() - timedelta(days=1)
