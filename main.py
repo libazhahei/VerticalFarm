@@ -8,7 +8,7 @@ from gateway.service import BLEServiceContext
 
 async def main() -> None:
     """Main function to demonstrate the usage of MQTTServiceContext and BLEServiceContext."""
-    mqtt_service_context = MQTTServiceContext(borker_host="localhost", broker_port=1883, client_id="test_client")
+    mqtt_service_context = MQTTServiceContext(broker_host="localhost", broker_port=1883, client_id="test_client")
     await mqtt_service_context.start()
     await init_schema()
     ble_service_context = BLEServiceContext([1, 2, 3])
