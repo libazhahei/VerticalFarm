@@ -219,3 +219,12 @@ __marimo__/
 **/*.ipynb 
 # JupyterLab & Jupyter Notebook checkpoints
 .ipynb_checkpoints
+
+# Sqlite database files
+*.sqlite3
+*.db
+*.db-shm 
+*.db-wal
+# Local environment variables
+.env
+.env.local

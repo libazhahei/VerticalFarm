@@ -19,18 +19,24 @@ async def get_realtime_data() -> dict:
         if data.board_id not in latest_data or data.timestamp > latest_data[data.board_id].timestamp:
             lastest_timestamp = data.timestamp
             latest_data[data.board_id] = data
+    board_data = []
+    for key in range(DEVICE_MIN_ID, DEVICE_MAX_ID):
+        if key in latest_data:
+            board_data.append({
+                "board_id": key,
+                "temperature": latest_data[key].temperature,
+                "humidity": latest_data[key].humidity,
+                "light": latest_data[key].light_intensity,
+                "fan": 1,
+                "led": 0,
+                "online": key in ids
+            })
+
     return {
         "timestamp": lastest_timestamp,
-        "boards": [
-            { "board_id": key, "temperature": latest_data[key].temperature, 
-             "humidity": latest_data[key].humidity, 
-             "light": latest_data[key].light_intensity, 
-             "fan": 1, "led": 0, 
-            "online": key in ids 
-            }
-            for key in range(DEVICE_MIN_ID, DEVICE_MAX_ID)
-        ]
+        "boards": board_data
     }
+
 
 
 @other_router.get("/board/{board_id}/status")
@@ -46,7 +52,7 @@ async def get_board_status(board_id: int) -> dict:
             latest_data = data
             break
     else:
-        return {"error": "No data found for this board"}
+        return {"error": "This device is offline or has no data."}
     return {
         "board_id": latest_data.board_id,
         "temperature": latest_data.temperature,
@@ -56,3 +62,4 @@ async def get_board_status(board_id: int) -> dict:
         "led": 0,
         "online": board_id in writer.boards_ids
     }
+

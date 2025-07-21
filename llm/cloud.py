@@ -1,5 +1,8 @@
 import asyncio
-
+from enum import Enum
+from typing import Any, Callable, Dict, Optional
+import json
+import aiorwlock
 from attr import dataclass
 from langchain_core.output_parsers import JsonOutputParser
 
@@ -7,6 +10,7 @@ from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_perplexity import ChatPerplexity
+from matplotlib.pyplot import cla
 from pydantic import SecretStr
 
 system_prompt = """
@@ -23,7 +27,8 @@ Format the output in clear sections with bullet points or labels.
 
 user_prompt = "Please analyze the attached sensor data and generate a report including summary statistics, anomaly detection, recommended control actions, and overall farm status"
 
-# def get_daily_report():
+def get_daily_report():
+    return {}
 
     # # upload file
     # # TODO: generate daily sensor data file
@@ -69,6 +74,16 @@ class DailyPlan:
     def __init__(self, openai_key: str, preplexity_key: str) -> None:
         self.preplexity_key = preplexity_key
         self.openai_key = openai_key
+
+    def demo_data(self) -> Dict[str, str]:
+        """
+        Returns a dictionary with demo data for testing purposes.
+        """
+        return {
+            "p1_output": json.loads(open("llm/p1_output.json", "r").read()),
+            "p2_output": json.loads(open("llm/p2_output.json", "r").read()),
+            "p3_output": json.loads(open("llm/p3_output.json", "r").read())
+        }
 
     def _search_knowledge(self, curr_status: ChainPart1UserInput) -> dict:
         P1_prompt_template = """
@@ -382,3 +397,58 @@ class DailyPlan:
             "p2_output": p2_output,
             "p3_output": p3_output
         }
+
+class LLMCacheKey(str, Enum):
+    DAILY_PLAN = "daily_plan"
+    REPORT = "report"
+
+
+class CloudLLMCache: 
+    _instance: Optional["CloudLLMCache"] = None
+    _lock = aiorwlock.RWLock()
+    _cache: Dict[str, dict] = {}
+
+    @classmethod
+    async def get_instance(cls) -> "CloudLLMCache":
+        async with cls._lock.writer_lock:
+            if cls._instance is None:
+                cls._instance = CloudLLMCache()
+        return cls._instance
+
+    async def get(self, key: str, sector: LLMCacheKey = LLMCacheKey.DAILY_PLAN) -> Optional[dict]:
+        async with self._lock.reader_lock:
+            return self._cache[sector].get(key, None)
+
+    async def access(self, accessor: Callable[[dict], Any], default: Any = None, sector: LLMCacheKey = LLMCacheKey.DAILY_PLAN) -> Any:
+        """
+        Access the cache with a callable that processes the cached data.
+        
+        :param accessor: A callable that takes the cached data and returns a processed result.
+        :param default: Default value to return if the key is not found.
+        :return: Processed result from the cache or default value.
+        """
+        async with self._lock.reader_lock:
+            try:
+                return accessor(self._cache[sector])
+            except KeyError:
+                return default
+
+    async def set(self, key: str, value: dict) -> None:
+        async with self._lock.writer_lock:
+            self._cache[key] = value
+
+    async def refresh_plan(self, planner: DailyPlan, curr_status: ChainPart1UserInput, demo: bool = False) -> dict:
+        """
+        Refresh the daily plan by generating a new one based on the current status.
+        
+        :param planner: DailyPlan object to generate the plan.
+        :param curr_status: ChainPart1UserInput object containing the current status and user input.
+        :return: A dictionary containing the refreshed daily plan.
+        """
+        async with self._lock.writer_lock:
+            if demo:
+                new_plan = planner.demo_data()
+            else:
+                new_plan = await planner.generate_daily_plan(curr_status)
+            self._cache[LLMCacheKey.DAILY_PLAN] = new_plan
+            return new_plan
