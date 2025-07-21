@@ -18,23 +18,16 @@ export default function AIInsights () {
   //   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Real API call (commented until backend is ready):
-    // const fetchInsights = async () => {
-    //   try {
-    //     const data = await sendRequest('api/ai/short/insights', 'GET');
-    //     // normalize fields, split action_priority, etc...
-    //     setInsight(processedData);
-    //   } catch (err) {
-    //     setError(err.message);
-    //   }
-    // };
-    // fetchInsights();
+    // —— Fake data for development ——
     setInsight({
-      summary: 'Reduce humidity to <70%, sacrifice: 10% photosynthetic efficiency',
-      reasoning: 'Transpiration accelerates, high humidity and heat can cause diseases, root oxygen consumption ↑ ↔ photosynthesis ↑, possible heat from LED strips',
+      summary: 'Lower humidity <70% with 10% loss in efficiency.',
+      reasoning: 'Faster transpiration reduces disease but raises root O₂ demand; LEDs add heat.',
       risk_level: 'high',
-      control_priority: 'Avoid disease risk & prevent heat damage',
-      action_priority: ['Fan to 100% for strong ventilation', 'Slightly lower LED to 9,000 Lux'],
+      control_priority: 'Prevent disease & avoid heat stress',
+      action_priority: [
+        'Set fan to 80% for better airflow',
+        'Reduce LED to 9,000 Lux'
+      ],
       suggestion_time: new Date().toISOString()
     });
   }, []);

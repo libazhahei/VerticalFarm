@@ -43,9 +43,10 @@ export default function DeviceManagement (props) {
 
     // Fake data for layout
     setDevices([
-      { board_id: 1, status: 'online', last_seen: '10:45 AM', uuid: 'A1B2-C3D4-E5F6' },
-      { board_id: 2, status: 'offline', last_seen: '10:35 AM', uuid: 'B2C3-D4E5-F6A1' },
-      { board_id: 3, status: 'online', last_seen: '10:50 AM', uuid: 'C3D4-E5F6-A1B2' }
+      { board_id: 1, status: 'online', last_seen: '10:45 AM', ip: '192.160.1.10' },
+      { board_id: 2, status: 'offline', last_seen: '10:35 AM', ip: '192.18.1.5' },
+      { board_id: 3, status: 'online', last_seen: '10:50 AM', ip: '192.10.2.7' },
+      { board_id: 4, status: 'online', last_seen: '11:50 AM', ip: '192.10.2.7' }
     ]);
   }, []);
 

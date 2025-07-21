@@ -1,120 +1,420 @@
-import React, { useEffect, useState } from 'react';
+// src/components/PlantInfoDialog.jsx
+import React, { useState, useEffect } from 'react';
 import {
-  Dialog, DialogTitle, DialogContent, DialogActions,
-  TextField, Button, Box, CircularProgress, Alert
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Button,
+  Box,
+  Typography,
+  IconButton,
+  Chip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Divider,
+  Avatar,
+  useTheme,
+  alpha
 } from '@mui/material';
-// import { sendRequest } from '../Request';
+import {
+  Close as CloseIcon,
+  LocalFlorist as PlantIcon,
+  Save as SaveIcon,
+  Cancel as CancelIcon,
+  Timeline as StageIcon
+} from '@mui/icons-material';
 
-export default function PlantInfoDialog ({ open, onClose }) {
-  const [plantName, setPlantName] = useState('');
-  const [stage, setStage] = useState('');
-  const [remark, setRemark] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [fetching, setFetching] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+const plantStages = [
+  'Seedling',
+  'Vegetative',
+  'Flowering',
+  'Fruiting',
+  'Harvest Ready',
+  'Dormant'
+];
+
+const commonPlants = [
+  'Lettuce',
+  'Tomato',
+  'Basil',
+  'Spinach',
+  'Kale',
+  'Mint',
+  'Cilantro',
+  'Parsley',
+  'Pepper',
+  'Cucumber'
+];
+
+const getStageColor = (stage) => {
+  const stageColors = {
+    Seedling: '#4caf50',
+    Vegetative: '#8bc34a',
+    Flowering: '#ff9800',
+    Fruiting: '#f44336',
+    'Harvest Ready': '#9c27b0',
+    Dormant: '#607d8b'
+  };
+  return stageColors[stage] || '#2196f3';
+};
+
+export default function PlantInfoDialog ({ open, initialInfo, onClose, onSave }) {
+  const theme = useTheme();
+  const [formData, setFormData] = useState({
+    name: '',
+    stage: '',
+    remark: ''
+  });
 
   useEffect(() => {
-    if (open) {
-      setFetching(true);
-      setError('');
-      setSuccess('');
-      // sendRequest('api/user/plant_info', 'GET')
-      //   .then(data => {
-      //     setPlantName(data.name || '');
-      //     setStage(data.stage || '');
-      //     setRemark(data.remark || '');
-      //   })
-      //   .catch(err => setError(err.message))
-      //   .finally(() => setFetching(false));
-      setTimeout(() => {
-        setPlantName('Lettuce');
-        setStage('vegetative');
-        setRemark('Slightly yellow leaves, need to observe.');
-        setFetching(false);
-      }, 500);
+    if (initialInfo) {
+      setFormData(initialInfo);
     }
-  }, [open]);
+  }, [initialInfo]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    setSuccess('');
-    // try {
-    //   await sendRequest('api/user/plant_info', 'POST', {
-    //     name: plantName,
-    //     stage,
-    //     remark
-    //   });
-    //   setSuccess('Plant information saved!');
-    // } catch (err) {
-    //   setError(err.message);
-    // } finally {
-    //   setLoading(false);
-    // }
-    setTimeout(() => {
-      setSuccess('Plant information saved!');
-      setLoading(false);
-    }, 500);
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
-  const handleClose = () => {
-    setError('');
-    setSuccess('');
+  const handleSave = () => {
+    onSave(formData);
+    onClose();
+  };
+
+  const handleCancel = () => {
+    setFormData(initialInfo);
     onClose();
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth
-      PaperProps={{ sx: { backgroundColor: 'background.default' } }}>
-      <DialogTitle>Record Current Plant Information</DialogTitle>
-      <DialogContent>
-        {fetching
-          ? (
-            <Box display="flex" justifyContent="center" alignItems="center" minHeight={120}>
-              <CircularProgress />
+    <Dialog
+      open={open}
+      onClose={handleCancel}
+      maxWidth="sm"
+      fullWidth
+      PaperProps={{
+        sx: {
+          borderRadius: 3,
+          boxShadow: theme.shadows[20],
+          backgroundColor: theme.palette.background.default,
+          border: `1px solid ${alpha(theme.palette.divider, 0.1)}`
+        }
+      }}
+    >
+      {/* Header */}
+      <DialogTitle
+        sx={{
+          pb: 0,
+          position: 'relative',
+          background: alpha(theme.palette.primary.main, 0.03),
+          borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`
+        }}
+      >
+        <Box display="flex" alignItems="center" gap={2}>
+          <Avatar
+            sx={{
+              bgcolor: theme.palette.primary.main,
+              width: 56,
+              height: 56,
+              boxShadow: theme.shadows[4]
+            }}
+          >
+            <PlantIcon fontSize="large" />
+          </Avatar>
+          <Box flex={1}>
+            <Typography variant="h5" fontWeight={700} color="primary">
+              Plant Information
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              Configure your plant settings and growth stage
+            </Typography>
+          </Box>
+          <IconButton
+            onClick={handleCancel}
+            sx={{
+              position: 'absolute',
+              right: 8,
+              top: 8,
+              bgcolor: alpha(theme.palette.grey[500], 0.1),
+              '&:hover': {
+                bgcolor: alpha(theme.palette.grey[500], 0.2)
+              }
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </Box>
+      </DialogTitle>
+
+      <DialogContent sx={{ p: 3 }}>
+        <Box display="flex" flexDirection="column" gap={3}>
+          {/* Plant Name Section */}
+          <Box>
+            <Typography
+              variant="subtitle1"
+              fontWeight={600}
+              color="text.primary"
+              sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}
+            >
+              <PlantIcon color="primary" fontSize="small" />
+              Plant Details
+            </Typography>
+
+            <TextField
+              fullWidth
+              label="Plant Name"
+              value={formData.name}
+              onChange={(e) => handleInputChange('name', e.target.value)}
+              variant="outlined"
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                  transition: 'all 0.2s ease',
+                  '&:hover': {
+                    boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.1)}`
+                  },
+                  '&.Mui-focused': {
+                    boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.2)}`
+                  }
+                }
+              }}
+            />
+
+            {/* Plant Suggestions */}
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+                Quick select:
+              </Typography>
+              <Box display="flex" flexWrap="wrap" gap={1}>
+                {commonPlants.slice(0, 5).map((plant) => (
+                  <Chip
+                    key={plant}
+                    label={plant}
+                    variant={formData.name === plant ? 'filled' : 'outlined'}
+                    color={formData.name === plant ? 'primary' : 'default'}
+                    size="small"
+                    onClick={() => handleInputChange('name', plant)}
+                    sx={{
+                      borderRadius: 2,
+                      transition: 'all 0.2s ease',
+                      '&:hover': {
+                        transform: 'translateY(-1px)',
+                        boxShadow: theme.shadows[2]
+                      }
+                    }}
+                  />
+                ))}
+              </Box>
             </Box>
-            )
-          : (
-            <form onSubmit={handleSubmit}>
-              <TextField
-                label="Plant Name"
-                value={plantName}
-                onChange={e => setPlantName(e.target.value)}
-                fullWidth
-                margin="normal"
-                required
-              />
-              <TextField
+          </Box>
+
+          <Divider sx={{ opacity: 0.3 }} />
+
+          {/* Growth Stage Section */}
+          <Box>
+            <Typography
+              variant="subtitle1"
+              fontWeight={600}
+              color="text.primary"
+              sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}
+            >
+              <StageIcon color="secondary" fontSize="small" />
+              Growth Stage
+            </Typography>
+
+            <FormControl
+              fullWidth
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                  transition: 'all 0.2s ease',
+                  '&:hover': {
+                    boxShadow: `0 0 0 2px ${alpha(theme.palette.secondary.main, 0.1)}`
+                  },
+                  '&.Mui-focused': {
+                    boxShadow: `0 0 0 2px ${alpha(theme.palette.secondary.main, 0.2)}`
+                  }
+                }
+              }}
+            >
+              <InputLabel>Growth Stage</InputLabel>
+              <Select
+                value={formData.stage}
                 label="Growth Stage"
-                value={stage}
-                onChange={e => setStage(e.target.value)}
-                fullWidth
-                margin="normal"
-                required
-              />
-              <TextField
-                label="Status Remark"
-                value={remark}
-                onChange={e => setRemark(e.target.value)}
-                fullWidth
-                margin="normal"
-                multiline
-                minRows={2}
-              />
-              {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
-              {success && <Alert severity="success" sx={{ mt: 2 }}>{success}</Alert>}
-            </form>
+                onChange={(e) => handleInputChange('stage', e.target.value)}
+                MenuProps={{
+                  PaperProps: {
+                    sx: {
+                      backgroundColor: theme.palette.background.default,
+                      opacity: 1,
+                      backdropFilter: 'none',
+                      zIndex: theme.zIndex.modal + 1,
+                      '& .MuiMenuItem-root': {
+                        backgroundColor: 'transparent',
+                        opacity: 1
+                      }
+                    }
+                  },
+                  sx: {
+                    '& .MuiPaper-root': {
+                      backgroundColor: theme.palette.background.default,
+                      opacity: 1,
+                      backdropFilter: 'none'
+                    }
+                  }
+                }}
+              >
+                {plantStages.map((stage) => (
+                  <MenuItem
+                    key={stage}
+                    value={stage}
+                    sx={{
+                      backgroundColor: 'transparent',
+                      opacity: 1,
+                      '&.Mui-selected': {
+                        backgroundColor: `${getStageColor(stage)} !important`,
+                        color: theme.palette.common.white,
+                        opacity: 1
+                      },
+                      '&.Mui-selected:hover': {
+                        backgroundColor: `${getStageColor(stage)} !important`,
+                        opacity: 1
+                      },
+                      '&:hover': {
+                        backgroundColor: alpha(getStageColor(stage), 0.1),
+                        opacity: 1
+                      }
+                    }}
+                  >
+                    <Box display="flex" alignItems="center" gap={2}>
+                      <Box
+                        sx={{
+                          width: 12,
+                          height: 12,
+                          borderRadius: '50%',
+                          backgroundColor: getStageColor(stage),
+                          opacity: 1
+                        }}
+                      />
+                      {stage}
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {formData.stage && (
+              <Box sx={{ mt: 2 }}>
+                <Chip
+                  label={formData.stage}
+                  sx={{
+                    bgcolor: getStageColor(formData.stage),
+                    color: theme.palette.common.white,
+                    border: `1px solid ${alpha(getStageColor(formData.stage), 0.3)}`,
+                    opacity: 1,
+                    fontWeight: 600
+                  }}
+                />
+              </Box>
             )}
+          </Box>
+
+          <Divider sx={{ opacity: 0.3 }} />
+
+          {/* Remarks Section */}
+          <Box>
+            <Typography
+              variant="subtitle1"
+              fontWeight={600}
+              color="text.primary"
+              sx={{ mb: 2 }}
+            >
+              Notes & Observations
+            </Typography>
+
+            <TextField
+              fullWidth
+              label="Remarks"
+              multiline
+              rows={4}
+              value={formData.remark}
+              onChange={(e) => handleInputChange('remark', e.target.value)}
+              placeholder="Add any observations, notes, or special care instructions..."
+              variant="outlined"
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                  transition: 'all 0.2s ease',
+                  '&:hover': {
+                    boxShadow: `0 0 0 2px ${alpha(theme.palette.info.main, 0.1)}`
+                  },
+                  '&.Mui-focused': {
+                    boxShadow: `0 0 0 2px ${alpha(theme.palette.info.main, 0.2)}`
+                  }
+                }
+              }}
+            />
+          </Box>
+        </Box>
       </DialogContent>
-      <DialogActions>
-            <Button onClick={handleClose} color="secondary">cancel</Button>
-            <Button
-              onClick={handleSubmit}
-              variant="contained"
-              disabled={loading || fetching}
-            >{loading ? <CircularProgress size={20} /> : 'Save'}</Button>
+
+      <DialogActions
+        sx={{
+          p: 3,
+          pt: 2,
+          background: theme.palette.background.paper,
+          borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+          gap: 2
+        }}
+      >
+        <Button
+          onClick={handleCancel}
+          variant="outlined"
+          startIcon={<CancelIcon />}
+          sx={{
+            borderRadius: 2,
+            px: 3,
+            py: 1,
+            textTransform: 'none',
+            fontWeight: 600,
+            borderColor: alpha(theme.palette.grey[500], 0.5),
+            color: theme.palette.text.secondary,
+            '&:hover': {
+              borderColor: theme.palette.grey[500],
+              bgcolor: alpha(theme.palette.grey[500], 0.05)
+            }
+          }}
+        >
+          Cancel
+        </Button>
+        <Button
+          onClick={handleSave}
+          variant="contained"
+          startIcon={<SaveIcon />}
+          sx={{
+            borderRadius: 2,
+            px: 3,
+            py: 1,
+            textTransform: 'none',
+            fontWeight: 600,
+            background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+            boxShadow: theme.shadows[4],
+            '&:hover': {
+              background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.secondary.dark} 100%)`,
+              boxShadow: theme.shadows[8],
+              transform: 'translateY(-1px)'
+            }
+          }}
+        >
+          Save Changes
+        </Button>
       </DialogActions>
     </Dialog>
   );
