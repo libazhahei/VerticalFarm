@@ -23,6 +23,7 @@ class HistoryDataModel(BaseModel):
     unit: UnitModel 
     start_from: int
 
+
 def aggregate_data_by_unit(data: list[BoardData], unit: UnitModel, data_field: str) -> dict[int, list[BoardData]]:
     """
     Aggregates data by the specified unit and calculates the average for each board_id.

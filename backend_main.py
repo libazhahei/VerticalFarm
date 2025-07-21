@@ -1,7 +1,8 @@
 import logging
 import os
 from contextlib import asynccontextmanager
-from typing import Any, Tuple
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,7 +16,6 @@ from route.ai import ai_router
 from route.history import history_router
 from route.others import other_router
 from route.utils import GlobalContext
-import gateway.service as service_mod
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,13 +27,12 @@ MQTT_BROKER_HOST = "localhost"
 MQTT_BROKER_PORT = 1883
 MQTT_CLIENT_ID = "test_client"
 BLE_DEVICES = [1, 2, 3]  # Example BLE devices
-FAKE_LOWER_COMPUTER_COMMUNICATION = True  # Set to True for testing purposes
+FAKE_LOWER_COMPUTER_COMMUNICATION = False  # Set to True for testing purposes
 
-async def fake_lower_computer_services(mqtt: MQTTServiceContext, ble: BLEServiceContext) -> Tuple[MQTTServiceContext, BLEServiceContext]:
+async def fake_lower_computer_services(mqtt: MQTTServiceContext, ble: BLEServiceContext) -> tuple[MQTTServiceContext, BLEServiceContext]:
     """Simulate lower computer communication for testing purposes."""
     if FAKE_LOWER_COMPUTER_COMMUNICATION:
         logger.info("Simulating lower computer communication.")
-        from unittest.mock import MagicMock, AsyncMock, patch
         # MQTT Simulation
         fake_device = MagicMock()
         fake_device.name = "CropWaifu-Board-1"
@@ -42,10 +41,14 @@ async def fake_lower_computer_services(mqtt: MQTTServiceContext, ble: BLEService
         ble.ble_client.is_running = True
         ble.ble_client.connection_tasks = {1: MagicMock()}
         ble.ble_client.ble_clients = {1: MagicMock(is_connected=True)}
+        ble.ble_client.start = AsyncMock()
+        ble.ble_client.stop = AsyncMock()
+
 
         # MQTT Simulation
         mqtt.control_cmd_pub.safe_publish = MagicMock(return_value=True)
-        mqtt.heartbeat_sub.get_alive_devices = AsyncMock(return_value=[1, 2, 3])
+        mqtt.heartbeat_sub.get_alive_devices = AsyncMock(return_value=[1])
+        mqtt.heartbeat_sub.is_alive = AsyncMock(lambda board_id: True if board_id == 1 else False)
         mqtt.is_connected = MagicMock(return_value=True)
     else:   
         await mqtt.start()
