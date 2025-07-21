@@ -1,6 +1,7 @@
 import asyncio
 from datetime import datetime
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from aiorwlock import RWLock
 from tortoise import fields
@@ -24,7 +25,7 @@ class BoardData(Model):
     """
 
     id = fields.IntField(pk=True)
-    timestamp = fields.DatetimeField(auto_now_add=True)
+    timestamp = fields.DatetimeField(auto_now_add=True, use_tz=True)
     board_id = fields.IntField()
     temperature = fields.FloatField()
     light_intensity = fields.IntField()
@@ -274,11 +275,16 @@ class BoardDataBatchWriter:
             List[BoardData]: A list of BoardData objects that match the criteria.
 
         """
-        db_query = BoardData.filter(timestamp__gte=since)
+        # Convert current time to UTC timestamp anyway
+        utc_since = since.astimezone(tz=ZoneInfo("UTC"))
+        db_query = BoardData.filter(timestamp__gte=utc_since)
         if board_ids:
             db_query = db_query.filter(board_id__in=board_ids)
 
         db_data = await db_query.order_by("-timestamp").all()
+        # Convert all timezone in db_data to the specified timezone
+        for data in db_data:
+            data.timestamp = data.timestamp.astimezone(tz=ZoneInfo("Australia/Sydney"))
 
         buf_data = await self.fetch()
         filtered_buf_data = [
@@ -286,4 +292,5 @@ class BoardDataBatchWriter:
             if data.timestamp is not None and data.timestamp >= since and (not board_ids or data.board_id in board_ids)
         ]
         filtered_buf_data.sort(key=lambda x: x.timestamp, reverse=True)
+        print(f"Fetched {len(db_data)} from DB and {len(filtered_buf_data)} from buffer since {since}")
         return db_data + filtered_buf_data

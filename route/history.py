@@ -1,10 +1,12 @@
 import datetime
 from enum import Enum
+from zoneinfo import ZoneInfo
 
 from fastapi.routing import APIRouter
 from pydantic import BaseModel
 
 from data.tables import BoardData, BoardDataBatchWriter
+from gateway.constants import TIMEZONE
 
 history_router = APIRouter(prefix="/history")
 
@@ -20,8 +22,8 @@ class UnitModel(str, Enum):
 class HistoryDataModel(BaseModel):
     """Model for the history data request."""
 
-    unit: UnitModel 
-    start_from: int
+    unit: UnitModel = UnitModel.MINUTE
+    start_from: int = int((datetime.datetime.now(tz=ZoneInfo(TIMEZONE)) - datetime.timedelta(minutes=15)).timestamp())
 
 
 def aggregate_data_by_unit(data: list[BoardData], unit: UnitModel, data_field: str) -> dict[int, list[BoardData]]:
@@ -30,7 +32,7 @@ def aggregate_data_by_unit(data: list[BoardData], unit: UnitModel, data_field: s
 
     Args:
         data (list[BoardData]): List of BoardData objects to aggregate.
-        unit (UnitModel): The unit to aggregate by (day, hour, minute, second, ms).
+        unit (UnitModel): The unit to aggregate by (day, hour, minute, second, ms) every unit.
         data_field (str): The field in BoardData to aggregate (e.g., "temperature", "humidity", "light_intensity").
 
     Returns:
@@ -73,7 +75,8 @@ def aggregate_data_by_unit(data: list[BoardData], unit: UnitModel, data_field: s
 async def get_temperature_history(data: HistoryDataModel) -> list[dict]:
     """Endpoint to fetch temperature history data."""
     writer = BoardDataBatchWriter.get_instance()
-    history_data = await writer.fetch_since(since=datetime.datetime.fromtimestamp(data.start_from), board_ids=None)
+    print(f"Fetching temperature history since {datetime.datetime.fromtimestamp(data.start_from, tz=ZoneInfo(TIMEZONE))} with unit {data.unit}")
+    history_data = await writer.fetch_since(since=datetime.datetime.fromtimestamp(data.start_from, tz=ZoneInfo(TIMEZONE)), board_ids=None)
     if not history_data:
         return []
 
@@ -86,7 +89,7 @@ async def get_temperature_history(data: HistoryDataModel) -> list[dict]:
 async def get_humidity_history(data: HistoryDataModel) -> list[dict]:
     """Endpoint to fetch humidity history data."""
     writer = BoardDataBatchWriter.get_instance()
-    history_data = await writer.fetch_since(since=datetime.datetime.fromtimestamp(data.start_from), board_ids=None)
+    history_data = await writer.fetch_since(since=datetime.datetime.fromtimestamp(data.start_from, tz=ZoneInfo(TIMEZONE)), board_ids=None)
     if not history_data:
         return []
 
@@ -99,7 +102,7 @@ async def get_humidity_history(data: HistoryDataModel) -> list[dict]:
 async def get_light_history(data: HistoryDataModel) -> list[dict]:
     """Endpoint to fetch light intensity history data."""
     writer = BoardDataBatchWriter.get_instance()
-    history_data = await writer.fetch_since(since=datetime.datetime.fromtimestamp(data.start_from), board_ids=None)
+    history_data = await writer.fetch_since(since=datetime.datetime.fromtimestamp(data.start_from, tz=ZoneInfo(TIMEZONE)), board_ids=None)
     if not history_data:
         return []
 
@@ -113,7 +116,7 @@ async def get_light_history(data: HistoryDataModel) -> list[dict]:
 async def get_board_temperature_history(board_id: int, data: HistoryDataModel) -> list[dict]:
     """Endpoint to fetch temperature history for a specific board."""
     writer = BoardDataBatchWriter.get_instance()
-    history_data = await writer.fetch_since(since=datetime.datetime.fromtimestamp(data.start_from), board_ids=[board_id])
+    history_data = await writer.fetch_since(since=datetime.datetime.fromtimestamp(data.start_from, tz=ZoneInfo(TIMEZONE)), board_ids=[board_id])
     if not history_data:
         return []
 
@@ -126,7 +129,7 @@ async def get_board_temperature_history(board_id: int, data: HistoryDataModel) -
 async def get_board_humidity_history(board_id: int, data: HistoryDataModel) -> list[dict]:
     """Endpoint to fetch humidity history for a specific board."""
     writer = BoardDataBatchWriter.get_instance()
-    history_data = await writer.fetch_since(since=datetime.datetime.fromtimestamp(data.start_from), board_ids=[board_id])
+    history_data = await writer.fetch_since(since=datetime.datetime.fromtimestamp(data.start_from, tz=ZoneInfo(TIMEZONE)), board_ids=[board_id])
     if not history_data:
         return []
 
@@ -139,7 +142,7 @@ async def get_board_humidity_history(board_id: int, data: HistoryDataModel) -> l
 async def get_board_light_history(board_id: int, data: HistoryDataModel) -> list[dict]:
     """Endpoint to fetch light intensity history for a specific board."""
     writer = BoardDataBatchWriter.get_instance()
-    history_data = await writer.fetch_since(since=datetime.datetime.fromtimestamp(data.start_from), board_ids=[board_id])
+    history_data = await writer.fetch_since(since=datetime.datetime.fromtimestamp(data.start_from, tz=ZoneInfo(TIMEZONE)), board_ids=[board_id])
     if not history_data:
         return []
 

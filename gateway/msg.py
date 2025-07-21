@@ -1,3 +1,4 @@
+from enum import Enum
 import itertools
 import json
 import threading
@@ -62,14 +63,14 @@ class BLEMessageType(MessageType):
 
 
 # Define a enum for mode: which is abs or relative
-class Mode:
-    ABSOLUTE: int = 0
-    RELATIVE: int = 1
+class Mode(int, Enum):
+    ABSOLUTE = 0
+    RELATIVE = 1
 
-class Status:
-    OK: int = 0
-    ERROR: int = 1
-    WARNING: int = 2
+class Status(int, Enum):
+    OK = 0
+    ERROR = 1
+    WARNING = 2
 
 @dataclass
 class ControlMsg(MQTTMessageType):
@@ -239,21 +240,23 @@ class HeartbeatMsg(MQTTMessageType):
     def get_message_id(self) -> int:
         return self.seq_no
 
+class SensorStatus(int, Enum):
+    IDLE = 0
+    RUNNING = 1
+    ERROR = 2
+
 @dataclass 
 class SensorDataMsg(BLEMessageType):
     board_id: int
     temperature: float 
-    humidity: float
     light_intensity: int 
-    fans: int 
-        
-    def __init__(self, board_id: int, temperature: float = 0.0, light_intensity: int = 0, fans: int = 0, 
-                 humidity: float = 0.0):
-        self.board_id = board_id
-        self.temperature = temperature
-        self.light_intensity = light_intensity
-        self.fans = fans
-        self.humidity = humidity
+    fans_real: int 
+    humidity: float
+    status: SensorStatus 
+    fans_abs: int  
+    led_abs: int
+    timestamp: float
+
 
     def __post_init__(self):
         if not (0 <= self.board_id <= 6):
@@ -262,9 +265,16 @@ class SensorDataMsg(BLEMessageType):
             raise ValueError(f"Temperature must be between 0 and 100, got {self.temperature}.")
         if not (0 <= self.light_intensity <= 65535):
             raise ValueError(f"Light intensity must be between 0 and 65535, got {self.light_intensity}.")
-        if not (0 <= self.fans <= 65535):
-            raise ValueError(f"Fans value must be between 0 and 65535, got {self.fans}.")
-    
+        if not (0 <= self.fans_real <= 65535):
+            raise ValueError(f"Fans value must be between 0 and 65535, got {self.fans_real}.")
+        if not (0 <= self.humidity <= 100):
+            raise ValueError(f"Humidity must be between 0 and 100, got {self.humidity}.")
+        if not (0 <= self.fans_abs <= 255):
+            raise ValueError(f"Fans absolute value must be between 0 and 255, got {self.fans_abs}.")
+        if not (0 <= self.led_abs <= 255):
+            raise ValueError(f"LED absolute value must be between 0 and 255, got {self.led_abs}.")
+        self.timestamp = int(datetime.now().timestamp())
+
     def to_byte_array(self) -> bytearray:
         byte_array = bytearray(20)
         byte_array[0] = self.board_id
@@ -273,11 +283,14 @@ class SensorDataMsg(BLEMessageType):
         byte_array[2] = (temp >> 8) & 0xFF
         byte_array[3] = self.light_intensity & 0xFF
         byte_array[4] = (self.light_intensity >> 8) & 0xFF
-        byte_array[5] = self.fans & 0xFF
-        byte_array[6] = (self.fans >> 8) & 0xFF
+        byte_array[5] = self.fans_real & 0xFF
+        byte_array[6] = (self.fans_real >> 8) & 0xFF
         byte_array[7] = int(self.humidity * 100) & 0xFF
         byte_array[8] = (int(self.humidity * 100) >> 8) & 0xFF
-        for i in range(9, 20):
+        byte_array[9] = self.status.value
+        byte_array[10] = self.fans_abs
+        byte_array[11] = self.led_abs
+        for i in range(12, 20):
             byte_array[i] = 0
         return byte_array
 
@@ -286,14 +299,21 @@ class SensorDataMsg(BLEMessageType):
         board_id = byte_array[0]
         temperature = int.from_bytes(byte_array[1:3], byteorder='little', signed=True) / 100.0
         light_intensity = int.from_bytes(byte_array[3:5], byteorder='little', signed=False)
-        fans = int.from_bytes(byte_array[5:7], byteorder='little', signed=False)
+        fans_real = int.from_bytes(byte_array[5:7], byteorder='little', signed=False)
         humidity = int.from_bytes(byte_array[7:9], byteorder='little', signed=False) / 100.0
+        status = SensorStatus(int.from_bytes(byte_array[9:10], byteorder='little', signed=False))
+        fans_abs = int.from_bytes(byte_array[10:11], byteorder='little', signed=False)
+        led_abs = int.from_bytes(byte_array[11:12], byteorder='little', signed=False)
         return cls(
             board_id=board_id,
             temperature=temperature,
             light_intensity=light_intensity,
-            fans=fans,
-            humidity=humidity
+            fans_real=fans_real,
+            humidity=humidity,
+            status=status,
+            fans_abs=fans_abs,
+            led_abs=led_abs,
+            timestamp=datetime.now().timestamp()
         )
 
         
