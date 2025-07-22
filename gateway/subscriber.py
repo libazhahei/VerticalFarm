@@ -2,12 +2,13 @@ import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from aiorwlock import RWLock
 
-from data.tables import BatchWriter, BoardData
+from data.tables import BoardData, BoardDataBatchWriter
 
-from .constants import DEVICE_MAX_ID, DEVICE_MIN_ID, SUBSCRIBE_HEARTBEAT_TIMEOUT_SECONDS
+from .constants import DEVICE_MAX_ID, DEVICE_MIN_ID, SUBSCRIBE_HEARTBEAT_TIMEOUT_SECONDS, TIMEZONE
 from .msg import BLEMessageType, HeartbeatMsg, MessageType, MQTTMessageType, SensorDataMsg, StatusMsg
 
 
@@ -229,7 +230,7 @@ class SensorDataSubscriber(BLESubscriber):
             Parses a byte array into a SensorDataMsg object.
     """
 
-    def __init__(self, db_writer: BatchWriter) -> None:
+    def __init__(self, db_writer: BoardDataBatchWriter) -> None:
         """Initializes the SensorDataSubscriber with a BatchWriter instance."""
         self.db_writer = db_writer
 
@@ -242,7 +243,7 @@ class SensorDataSubscriber(BLESubscriber):
                 board_id=msg.board_id,
                 temperature=msg.temperature,
                 light_intensity=msg.light_intensity,
-                humidity=msg.humidity,
+                timestamp=datetime.now(tz=ZoneInfo(TIMEZONE)),
             )
         )
 
@@ -371,7 +372,7 @@ class MessageDispatcher:
         while self.running:
             try:
                 msg: MQTTMessageType = await self.message_queue.get()
-                print(f"Dispatching message: {msg}")
+                # print(f"Dispatching message: {msg}")
                 if type(msg) in self.subscribers:
                     asyncio.create_task(self.dispatch(msg))
                 else:
@@ -382,8 +383,12 @@ class MessageDispatcher:
                 break
             except Exception as e:
                 print(f"Error in dispatch loop: {e}")
+            except SystemExit:
+                print("System exit requested, stopping dispatch loop.")
+                break
             finally:
-                print(f"Message {msg} processed.")
+                pass
+                # print(f"Message {msg} processed.")
 
     async def start(self) -> None:
         """Starts the MessageDispatcher if it is not already running.

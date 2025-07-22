@@ -10,7 +10,7 @@ from bleak.backends.device import BLEDevice
 from bleak.exc import BleakError
 from paho.mqtt.client import Client, MQTTMessage
 
-from data.tables import BatchWriter, BoardData
+from data.tables import BoardData, BoardDataBatchWriter
 
 from .constants import (
     DEVICE_PREFIX,
@@ -22,7 +22,7 @@ from .constants import (
     SUBSCRIBE_HEARTBEAT_TOPIC,
     get_characteristic_uuid,
 )
-from .msg import BLEMessageType, ControlMsg, HeartbeatMsg, MQTTMessageType, StatusMsg
+from .msg import BLEMessageType, ControlMsg, HeartbeatMsg, MQTTMessageType, SensorDataMsg, StatusMsg
 from .publisher import ControlCommandPublisher
 from .subscriber import (
     CommandResponseSubscriber,
@@ -283,12 +283,12 @@ class MQTTServiceContext:
     control_cmd_pub: ControlCommandPublisher
     command_status_sub: CommandResponseSubscriber
 
-    def __init__(self, borker_host: str, broker_port: int = 1883, client_id: str = "mqtt_client") -> None:
+    def __init__(self, broker_host: str, broker_port: int = 1883, client_id: str = "mqtt_client") -> None:
         """
         Initializes the service with MQTT clients, message dispatchers, and subscribers.
 
         Args:
-            broker_info (tuple[str, int]): A tuple containing the MQTT broker host and port.
+            broker_host (tuple[str, int]): A tuple containing the MQTT broker host and port.
             borker_host (str): The hostname of the MQTT broker.
             broker_port (int, optional): The port of the MQTT broker. Defaults to 1883.
             client_id (str, optional): The client ID for the MQTT clients. Defaults to "mqtt_client".
@@ -305,7 +305,7 @@ class MQTTServiceContext:
         self.heartbeat_sub = HeartbeatSubscriber()
         self.msg_dispatcher = MessageDispatcher()
         self.publish_client = Client(client_id=f"{client_id}_publisher")
-        self.borker_info = (borker_host, broker_port)
+        self.borker_info = (broker_host, broker_port)
         self.control_cmd_pub = ControlCommandPublisher(
             mqtt_client=self.publish_client, is_alive_func=self.heartbeat_sub.is_alive)
         self.command_status_sub = CommandResponseSubscriber(
@@ -313,7 +313,7 @@ class MQTTServiceContext:
         )
         self.subscribe_client = MqttClientWrapper(
             dispatcher=self.msg_dispatcher,
-            mqtt_broker_host=borker_host,
+            mqtt_broker_host=broker_host,
             mqtt_broker_port=broker_port,
             client_id=f"{client_id}_subscriber"
         )
@@ -538,7 +538,7 @@ class BLEClientWrapper:
             None
 
         """
-        self._characteristic_parsers[board_id] = handler
+        self._characteristic_parsers[get_characteristic_uuid(board_id)] = handler
 
     async def on_ble_notification(self, characteristic: BleakGATTCharacteristic , data: bytearray) -> None:
         """
@@ -780,7 +780,7 @@ class BLEServiceContext:
     ble_client: BLEClientWrapper
     is_running: bool
     _asyncio_loop: asyncio.AbstractEventLoop | None
-    batch_writer: BatchWriter
+    batch_writer: BoardDataBatchWriter
 
     def __init__(self, device_id_list: list[int] ) -> None:
         """
@@ -800,14 +800,14 @@ class BLEServiceContext:
 
         """
         self.msg_dispatcher = MessageDispatcher()
-        self.batch_writer = BatchWriter()
+        self.batch_writer = BoardDataBatchWriter.get_instance()
         self.ble_sub = SensorDataSubscriber(self.batch_writer)
         self.ble_client = BLEClientWrapper(
             device_id_lists=device_id_list,
             dispatcher=self.msg_dispatcher
         )
         self.msg_dispatcher.register_handler(
-            MQTTMessageType, self.ble_sub.handle
+            SensorDataMsg, self.ble_sub.handle
         )
         for device_id in device_id_list:
             self.ble_client.register_notification_handler(
@@ -895,18 +895,6 @@ class BLEServiceContext:
             List[BoardData]: Sorted (descending) BoardData list.
 
         """
-        db_query = BoardData.filter(timestamp__gte=since)
-        if board_ids:
-            db_query = db_query.filter(board_id__in=board_ids)
-
-        db_data = await db_query.order_by("-timestamp").all()
-
-        buf_data = await self.batch_writer.fetch()
-        filtered_buf_data = [
-            data for data in buf_data
-            if data.timestamp is not None and data.timestamp >= since and (not board_ids or data.board_id in board_ids)
-        ]
-        filtered_buf_data.sort(key=lambda x: x.timestamp, reverse=True)
-        return db_data + filtered_buf_data
+        return await self.batch_writer.fetch_since(since, board_ids)
 
 

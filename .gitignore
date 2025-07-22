@@ -213,3 +213,18 @@ __marimo__/
 # Linter Cache 
 .ruff_cache/
 
+# JupyterLab & Jupyter Notebook
+.jupyterlab/
+.jupyter/
+**/*.ipynb 
+# JupyterLab & Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Sqlite database files
+*.sqlite3
+*.db
+*.db-shm 
+*.db-wal
+# Local environment variables
+.env
+.env.local
