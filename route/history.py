@@ -26,7 +26,7 @@ class HistoryDataModel(BaseModel):
     start_from: int = int((datetime.datetime.now(tz=ZoneInfo(TIMEZONE)) - datetime.timedelta(minutes=15)).timestamp())
 
 
-def aggregate_data_by_unit(data: list[BoardData], unit: UnitModel, data_field: str) -> dict[int, list[BoardData]]:
+def aggregate_data_by_unit(data: list[BoardData], unit: UnitModel, data_field: str, ignore_board: bool = False) -> dict[int, list[BoardData]]:
     """
     Aggregates data by the specified unit and calculates the average for each board_id.
 
@@ -56,6 +56,8 @@ def aggregate_data_by_unit(data: list[BoardData], unit: UnitModel, data_field: s
 
         if key not in aggregated_data:
             aggregated_data[key] = {}
+        if ignore_board:
+            board_id = 0
 
         if board_id not in aggregated_data[key]:
             aggregated_data[key][board_id] = []
@@ -70,6 +72,23 @@ def aggregate_data_by_unit(data: list[BoardData], unit: UnitModel, data_field: s
                 result[board_id] = []
             result[board_id].append({"timestamp": key, "value": avg_value})
     return result
+
+
+@history_router.get("/all")
+async def get_all_history(unit: UnitModel, start_from: int) -> dict:
+    """Endpoint to fetch all history data."""
+    writer = BoardDataBatchWriter.get_instance()
+    history_data = await writer.fetch_since(since=datetime.datetime.fromtimestamp(start_from, tz=ZoneInfo(TIMEZONE)), board_ids=None)
+    temp_data = aggregate_data_by_unit(history_data, unit, "temperature", ignore_board=True).get(0, [])
+    humidity_data = aggregate_data_by_unit(history_data, unit, "humidity", ignore_board=True).get(0, [])
+    light_data = aggregate_data_by_unit(history_data, unit, "light_intensity", ignore_board=True).get(0, [])
+    return {
+        "temperature": temp_data,
+        "humidity": humidity_data,
+        "light_intensity": light_data
+    }
+    
+
 
 @history_router.post("/temperature")
 async def get_temperature_history(data: HistoryDataModel) -> list[dict]:
