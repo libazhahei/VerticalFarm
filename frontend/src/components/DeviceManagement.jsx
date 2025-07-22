@@ -29,35 +29,37 @@ export default function DeviceManagement (props) {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Real API call (commented until ready):
     const fetchDevices = async () => {
       try {
         const data = await sendRequest('api/devices', 'GET');
-        setDevices(data.devices);
+
+        // handle both shapes: Array or { devices: Array }
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data.devices)
+            ? data.devices
+            : [];
+
+        setDevices(list);
       } catch (err) {
         console.error(err);
-        setError(err.message);
+        setError(err.message || 'Unknown error');
       }
     };
     fetchDevices();
-
-    // Fake data for layout
-    // setDevices([
-    //   { board_id: 1, status: 'online', last_seen: '10:45 AM', ip: '192.160.1.10' },
-    //   { board_id: 2, status: 'offline', last_seen: '10:35 AM', ip: '192.18.1.5' },
-    //   { board_id: 3, status: 'online', last_seen: '10:50 AM', ip: '192.10.2.7' },
-    //   { board_id: 4, status: 'online', last_seen: '11:50 AM', ip: '192.10.2.7' }
-    // ]);
   }, []);
 
   if (error) {
     return (
-        <GlassCard elevation={1} sx={{ p: 2, textAlign: 'center' }}>
-          <Typography color="error">Error loading devices: {error}</Typography>
-        </GlassCard>
+      <GlassCard elevation={1} sx={{ p: 2, textAlign: 'center' }}>
+        <Typography color="error">
+          Error loading devices: {error}
+        </Typography>
+      </GlassCard>
     );
   }
-  if (!devices) {
+
+  if (devices === null) {
     return (
       <GlassCard elevation={1} sx={{ p: 2, textAlign: 'center' }}>
         <Typography>Loading devices…</Typography>
@@ -65,20 +67,29 @@ export default function DeviceManagement (props) {
     );
   }
 
+  if (devices.length === 0) {
+    return (
+      <GlassCard elevation={1} sx={{ p: 2, textAlign: 'center' }}>
+        <Typography>No devices found.</Typography>
+      </GlassCard>
+    );
+  }
+
   return (
-        <GlassCard
+    <GlassCard
       elevation={1}
       sx={{
         p: 2,
         display: 'flex',
         flexDirection: 'column',
-        height: '100%', // fill the parent
+        height: '100%',
         ...props.sx
       }}
     >
       <Typography variant="h6" gutterBottom>
         Device Management
       </Typography>
+
       <TableContainer
         component={Paper}
         elevation={0}
@@ -98,7 +109,9 @@ export default function DeviceManagement (props) {
               <TableRow
                 key={d.board_id}
                 sx={{
-                  '&:nth-of-type(odd)': { backgroundColor: 'rgba(255,255,255,0.02)' }
+                  '&:nth-of-type(odd)': {
+                    backgroundColor: 'rgba(255,255,255,0.02)'
+                  }
                 }}
               >
                 <TableCell>{d.board_id}</TableCell>
@@ -110,8 +123,11 @@ export default function DeviceManagement (props) {
                     sx={{ textTransform: 'capitalize', fontWeight: 600 }}
                   />
                 </TableCell>
-                <TableCell>{d.last_seen}</TableCell>
-                <TableCell>{d.ip}</TableCell>
+                <TableCell>
+                  {/* convert Unix timestamp (seconds) to human time */}
+                  {new Date(d.last_seen * 1000).toLocaleString()}
+                </TableCell>
+                <TableCell>{d.ip_address}</TableCell>
               </TableRow>
             ))}
           </TableBody>

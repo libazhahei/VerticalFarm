@@ -1,71 +1,75 @@
 import config from './config';
 
-// Code to send https requests to the server
+// Improved helper to send HTTP requests and surface validation errors
 export const sendRequest = async (route, method, body, navigate) => {
   try {
+    // Prepare headers
     const userToken = localStorage.getItem('access');
-    // if token was none
-    let header = null;
-    if (
-      userToken === null ||
-      typeof userToken === 'undefined' ||
-      userToken === 'undefined'
-    ) {
-      header = {
-        'Content-Type': 'application/json',
-      };
-    } else {
-      header = {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${userToken}`,
-      };
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+    if (userToken && userToken !== 'undefined') {
+      headers.Authorization = `Bearer ${userToken}`;
     }
+
+    // Send the request
     const response = await fetch(
       `http://localhost:${config.BACKEND_PORT}/${route}`,
       {
         method,
-        headers: header,
-        body: method !== 'GET' ? JSON.stringify(body) : undefined,
+        headers,
+        body: method !== 'GET' ? JSON.stringify(body) : undefined
       }
     );
 
-    if (!response.ok) {
-      console.error(`The response is ${response}`);
-      console.error(`Request failed with status: ${response.status}`);
-      throw new Error(`Request failed with status: ${response.status}`);
+    // Read raw text and attempt JSON parse
+    const text = await response.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = text;
     }
-    return method !== 'DELETE' ? response.json() : {};
-  } catch (error) {
-    if (error.code === 440) {
-      try {
-        localStorage.removeItem('access');
-        const refresh = localStorage.getItem('refresh');
-        const response = await fetch(
+
+    // Handle token-refresh status code (e.g., 440)
+    if (response.status === 440) {
+      // Remove old tokens
+      localStorage.removeItem('access');
+      localStorage.removeItem('refresh');
+      // Attempt refresh
+      const refreshToken = localStorage.getItem('refresh');
+      if (refreshToken) {
+        const refreshRes = await fetch(
           `http://localhost:${config.BACKEND_PORT}/auth/refresh/`,
           {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ refresh }),
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh: refreshToken })
           }
         );
-        if (response.ok) {
-          const data = await response.json();
-          localStorage.setItem('access', data.token);
-          localStorage.setItem('refresh', data.refresh);
-          return sendRequest(route, method, body);
+        if (refreshRes.ok) {
+          const tokens = await refreshRes.json();
+          localStorage.setItem('access', tokens.token);
+          localStorage.setItem('refresh', tokens.refresh);
+          // Retry original request
+          return sendRequest(route, method, body, navigate);
         }
-      } catch (error) {
-        console.error('Failed to refresh token:', error);
-        localStorage.removeItem('access');
-        localStorage.removeItem('refresh');
-        if (error.code === 440) {
-          navigate('/login');
-        }
-        throw error;
       }
+      // If we get here, refresh failed
+      if (navigate) navigate('/login');
+      throw new Error('Session expired, please login again.');
     }
+
+    // For other non-OK statuses, throw with detailed message
+    if (!response.ok) {
+      console.error('Request failed:', response.status, data);
+      throw new Error(`Request failed (${response.status}): ${JSON.stringify(data)}`);
+    }
+
+    // Return JSON or empty for DELETE
+    return method !== 'DELETE' ? data : {};
+  } catch (error) {
+    // Fallback error alert
     alert(`An error occurred: ${error.message}`);
     throw error;
   }
