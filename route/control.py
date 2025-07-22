@@ -2,18 +2,17 @@ from fastapi.routing import APIRouter
 from pydantic import BaseModel
 
 from gateway.constants import DEVICE_MAX_ID, DEVICE_MIN_ID
-from gateway.msg import ControlMsg
+from gateway.msg import ControlMsg, Mode
 
-from .utils import GlobalContext
+from .utils import GlobalContext, RunningMode
 
 control_router = APIRouter(prefix="/control")
 
 class ControlMsgSchema(BaseModel):
     """Schema for control message."""
 
-    board_id: int
-    fan: int
-    led: int
+    running_mode: RunningMode = RunningMode.AUTO
+    humidity: float
     temperature: float
     light_intensity: float
 
@@ -23,11 +22,10 @@ async def control_board(board_id: int) -> dict:
     """Endpoint to control a specific board."""
     if not (DEVICE_MIN_ID <= board_id <= DEVICE_MAX_ID):
         return {"error": "Invalid board ID"}
-    # context = GlobalContext.get_instance()
-    # ctrl_msg = ControlMsg(board_id=board_id, fan=1, led=0, temperature=25.0, light_intensity=50.0)
+    curr_running_mode = GlobalContext.get_instance().running_mode
+    running_target = GlobalContext.get_instance().get_running_target()
 
-
-    return { "mode": "auto", "fan": 1, "led": 0 }
+    return { "mode": str(curr_running_mode), **(running_target or {}) }
 
 @control_router.post("/{board_id}")
 async def update_board(board_id: int, data: ControlMsgSchema) -> dict:
@@ -38,15 +36,25 @@ async def update_board(board_id: int, data: ControlMsgSchema) -> dict:
     context = GlobalContext.get_instance()
     if context.mqtt_service_context is None:
         raise ValueError("MQTT service context is not initialized.")
-
+    if data.running_mode == RunningMode.AUTO:
+        print("Switching to auto mode")
+        context.switch_running_mode(RunningMode.AUTO)
+        return { "mode": str(context.running_mode) }
+    print(f"Switching to manual mode with data: {data}")
     ctrl_msg = ControlMsg(
         board_id=board_id,
-        fan=data.fan,
-        led=data.led,
+        fan=0,  # Placeholder for fan control
+        led=0,  # Placeholder for LED control
         temperature=data.temperature,
-        light_intensity=data.light_intensity
+        light_intensity=data.light_intensity,
+        mode=Mode.ABSOLUTE
     )
-
     await context.mqtt_service_context.publish_control_command(ctrl_msg)
 
-    return { "mode": "auto", "fan": 1, "led": 0 }
+    GlobalContext.get_instance().switch_running_mode(RunningMode.MANUAL, {
+        "humidity": data.humidity,
+        "temperature": data.temperature,
+        "light_intensity": data.light_intensity
+    })
+
+    return { "mode": str(GlobalContext.get_instance().running_mode)}

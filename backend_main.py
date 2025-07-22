@@ -10,6 +10,7 @@ from tortoise import Tortoise
 from uvicorn import run
 
 from data.config import init_schema
+from data.tables import BoardDataBatchWriter
 from gateway.service import BLEServiceContext, MQTTServiceContext
 from llm.cloud import ChainPart1UserInput, CloudLLMCache, DailyPlan
 from route.ai import ai_router
@@ -89,7 +90,22 @@ async def read_index(request: Request) -> Any:
 @app.get("/devices")
 async def get_devices() -> dict:
     """Endpoint to fetch the list of devices."""
-    return {"devices": ["device1", "device2", "device3"]}
+    global_context = GlobalContext.get_instance()
+    if global_context.ble_service_context is None:
+        return {"devices": []}
+    devices = await global_context.mqtt_service_context.alive_devices() if global_context.mqtt_service_context else []
+    ble_latest = await BoardDataBatchWriter.get_instance().fetch_latest(devices)
+
+    result = []
+    for ble_data in ble_latest:
+        if ble_data is not None:
+            result.append({
+                "board_id": ble_data.board_id,
+                "last_seen": ble_data.timestamp.timestamp() if ble_data.timestamp else None
+            })
+    return {
+        "devices": result
+    }
 
 
 @app.exception_handler(Exception)
