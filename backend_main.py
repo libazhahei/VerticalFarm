@@ -31,16 +31,10 @@ MQTT_CLIENT_ID = "test_client"
 BLE_DEVICES = [1, 2, 3]  # Example BLE devices
 
 
-async def init_lower_computer_services() -> tuple[MQTTServiceContext, BLEServiceContext]:
-    """Initialize MQTT and BLE service contexts."""
-    mqtt_service = MQTTServiceContext(
-        broker_host=MQTT_BROKER_HOST,
-        broker_port=MQTT_BROKER_PORT,
-        client_id=MQTT_CLIENT_ID
-    )
-    ble_service = BLEServiceContext(BLE_DEVICES)
-    mqtt_service, ble_service = await fake_lower_computer_services(mqtt_service, ble_service, BLE_DEVICES)
-    return mqtt_service, ble_service
+# async def init_lower_computer_services() -> tuple[MQTTServiceContext, BLEServiceContext]:
+#     """Initialize MQTT and BLE service contexts."""
+    
+#     return mqtt_service, ble_service
 
 @asynccontextmanager # type: ignore
 async def lifespan(app: FastAPI) -> Any:
@@ -57,7 +51,13 @@ async def lifespan(app: FastAPI) -> Any:
         comments= "",
     )
     await cache.refresh_plan(planner, user_setting, demo=True)
-    mqtt_service, ble_service = await init_lower_computer_services()
+    mqtt_service = MQTTServiceContext(
+        broker_host=MQTT_BROKER_HOST,
+        broker_port=MQTT_BROKER_PORT,
+        client_id=MQTT_CLIENT_ID
+    )
+    ble_service = BLEServiceContext(BLE_DEVICES)
+    mqtt_service, ble_service = await fake_lower_computer_services(mqtt_service, ble_service, BLE_DEVICES)
     GlobalContext.get_instance(mqtt_service_context=mqtt_service, ble_service_context=ble_service)
 
     yield

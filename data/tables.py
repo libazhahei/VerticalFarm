@@ -118,7 +118,10 @@ class BoardDataBatchWriter:
             except ConfigurationError:
                 pass
                 # print(f"Error initializing latest data: {e}")
-        asyncio.get_event_loop().run_until_complete(init_latest_data())
+        if asyncio.get_event_loop().is_running():
+            asyncio.create_task(init_latest_data())
+        else:
+            asyncio.get_event_loop().run_until_complete(init_latest_data())
 
 
     @classmethod
