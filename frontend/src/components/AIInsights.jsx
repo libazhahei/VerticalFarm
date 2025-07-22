@@ -60,7 +60,7 @@ export default function AIInsights () {
   const {
     summary = '',
     reasoning = '',
-    risk_level: riskLevel = 'low',
+    risk_level: riskLevel = '',
     control_priority: controlPriority = '',
     action_priority: actionPriority,
     suggestion_time: suggestionTime = ''
@@ -70,6 +70,14 @@ export default function AIInsights () {
   const actions = Array.isArray(actionPriority)
     ? actionPriority
     : (actionPriority ? [actionPriority] : []);
+
+  // Map risk levels to MUI Chip colors
+  const riskColorMap = {
+    low: 'success',
+    medium: 'warning',
+    high: 'error'
+  };
+  const chipColor = riskColorMap[riskLevel.toLowerCase()] || 'default';
 
   return (
     <GlassCard elevation={1} sx={{ p: 2 }}>
@@ -91,7 +99,7 @@ export default function AIInsights () {
           <Typography variant="subtitle2" color="text.secondary">Risk Level</Typography>
           <Chip
             label={riskLevel.toUpperCase()}
-            color={riskLevel === 'high' ? 'secondary' : 'default'}
+            color={chipColor}
             sx={{ fontWeight: 'bold', mt: 0.5 }}
           />
         </Grid>
@@ -105,7 +113,9 @@ export default function AIInsights () {
           <Typography variant="subtitle2" color="text.secondary">Action Priority</Typography>
           <Box component="ul" sx={{ pl: 2, mt: 0.5 }}>
             {actions.map((act, i) => (
-              <li key={i}><Typography variant="body2">{act}</Typography></li>
+              <li key={i}>
+                <Typography variant="body2">{act}</Typography>
+              </li>
             ))}
           </Box>
         </Grid>
