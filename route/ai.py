@@ -26,7 +26,7 @@ async def get_insights() -> dict:
         "reasoning": insights['Diagnosis_Tradeoff_Analysis'],
         "risk level": random.choice(["Low", "Medium", "High"]),
         "control_priority": insights['Primary_Control_Priority'],
-        "action_priority": ",".join(insights['Action_Priority']),
+        "action_priority": ",".join(insights['Prioritized_Action_Chain']),
         "suggestion_time": datetime.datetime.now().timestamp()
     }
 
@@ -47,7 +47,7 @@ async def get_strategies() -> list[dict]:
             "reasoning": strategie['Diagnosis_Tradeoff_Analysis'],
             "risk level": random.choice(["Low", "Medium", "High"]),
             "control_priority": strategie['Primary_Control_Priority'],
-            "action_priority": ",".join(strategie['Action_Priority']),
+            "action_priority": ",".join(strategie['Prioritized_Action_Chain']),
             "suggestion_time": datetime.datetime.now().timestamp()
         } for id, strategie in enumerate(strategies)]
 
