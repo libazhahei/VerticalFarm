@@ -24,7 +24,7 @@ async def get_insights() -> dict:
     return {
         "summary": insights['Condition_IF'],
         "reasoning": insights['Diagnosis_Tradeoff_Analysis'],
-        "risk level": random.choice(["Low", "Medium", "High"]),
+        "risk_level": random.choice(["Low", "Medium", "High"]),
         "control_priority": insights['Primary_Control_Priority'],
         "action_priority": ",".join(insights['Prioritized_Action_Chain']),
         "suggestion_time": datetime.datetime.now().timestamp()
