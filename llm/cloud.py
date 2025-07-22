@@ -10,7 +10,6 @@ from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_perplexity import ChatPerplexity
-from matplotlib.pyplot import cla
 from pydantic import SecretStr
 
 system_prompt = """
