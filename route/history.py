@@ -67,7 +67,7 @@ def aggregate_data_by_unit(data: list[BoardData], unit: UnitModel, data_field: s
     result = {}
     for key, board_data in aggregated_data.items():
         for board_id, values in board_data.items():
-            avg_value = sum(values) / len(values)
+            avg_value = sum(values) * 1.0 / len(values)
             if board_id not in result:
                 result[board_id] = []
             result[board_id].append({"timestamp": key, "value": avg_value})
