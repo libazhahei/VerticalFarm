@@ -3,6 +3,7 @@ import math
 import random
 from collections.abc import Callable
 from datetime import datetime, timedelta
+from enum import Enum
 from typing import Optional
 from unittest.mock import AsyncMock, MagicMock
 from zoneinfo import ZoneInfo
@@ -18,6 +19,15 @@ FAKE_LOWER_COMPUTER_COMMUNICATION = True  # Set to True for testing purposes
 global exit_fake_loop 
 exit_fake_loop = False
 
+class RunningMode(int, Enum):
+    """Enum to represent different running modes of the application."""
+
+    AUTO = 0
+    MANUAL = 1
+
+    def __str__(self) -> str:
+        return self.name.lower()
+
 class GlobalContext:
     """
     Global context for the application.
@@ -27,6 +37,8 @@ class GlobalContext:
     # Singleton instance
     mqtt_service_context: MQTTServiceContext | None
     ble_service_context: BLEServiceContext | None
+    running_mode: RunningMode = RunningMode.AUTO
+    running_target: dict
 
     global_context: Optional["GlobalContext"] = None
 
@@ -38,7 +50,31 @@ class GlobalContext:
         cls.global_context = cls()
         cls.global_context.mqtt_service_context = mqtt_service_context
         cls.global_context.ble_service_context = ble_service_context
+        cls.global_context.running_target = {
+            "auto": None,
+            "manual": None
+        }
+
         return cls.global_context
+
+    def switch_running_mode(self, mode: RunningMode, target: dict | None = None) -> None:
+        """Switch the running mode of the application."""
+        self.running_mode = mode
+        if self.running_mode == RunningMode.AUTO:
+            self.running_target['auto'] = target if target else self.running_target['manual']
+        elif self.running_mode == RunningMode.MANUAL:
+            self.running_target['manual'] = target if target else self.running_target['manual']
+
+        print(f"Running mode switched to: {self.running_mode}")
+
+    def get_running_target(self) -> dict | None:
+        """Get the current running target based on the running mode."""
+        if self.running_mode == RunningMode.AUTO:
+            return self.running_target['auto']
+        elif self.running_mode == RunningMode.MANUAL:
+            return self.running_target['manual']
+        return None
+
 
 def simulate_environment(seed: int, hour: float, board_id: int) -> tuple[float, float, int]:
     """Simulate environmental data based on the hour of the day and board ID.

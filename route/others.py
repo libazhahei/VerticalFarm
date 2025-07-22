@@ -1,7 +1,7 @@
 
 from fastapi.routing import APIRouter
 
-from data.tables import BoardData, BoardDataBatchWriter
+from data.tables import BoardDataBatchWriter
 from gateway.constants import DEVICE_MAX_ID, DEVICE_MIN_ID
 
 other_router = APIRouter()
@@ -13,12 +13,7 @@ async def get_realtime_data() -> dict:
     writer = BoardDataBatchWriter.get_instance()
     ids = writer.boards_ids
     # Filter out the latest data for each board_id
-    latest_data: dict[int, BoardData] = {}
-    lastest_timestamp = None
-    for data in await writer.fetch():
-        if data.board_id not in latest_data or data.timestamp > latest_data[data.board_id].timestamp:
-            lastest_timestamp = data.timestamp
-            latest_data[data.board_id] = data
+    latest_data = await writer.fetch_latest(list(writer.boards_ids))
     board_data = []
     for key in range(DEVICE_MIN_ID, DEVICE_MAX_ID):
         if key in latest_data:
@@ -29,11 +24,11 @@ async def get_realtime_data() -> dict:
                 "light": latest_data[key].light_intensity,
                 "fan": 1,
                 "led": 0,
-                "online": key in ids
+                "online": key in ids,
+                "timestamp": latest_data[key].timestamp.timestamp(),
             })
 
     return {
-        "timestamp": lastest_timestamp,
         "boards": board_data
     }
 
@@ -47,7 +42,8 @@ async def get_board_status(board_id: int) -> dict:
 
     writer = BoardDataBatchWriter.get_instance()
     # find the latest data in buffer for the given board_id
-    for data in writer.buffer:
+    latest_data = await writer.fetch_latest(list(writer.boards_ids))
+    for data in latest_data:
         if data.board_id == board_id:
             latest_data = data
             break
@@ -60,6 +56,7 @@ async def get_board_status(board_id: int) -> dict:
         "light": latest_data.light_intensity,
         "fan": 1,
         "led": 0,
-        "online": board_id in writer.boards_ids
+        "online": board_id in writer.boards_ids,
+        "timestamp": latest_data.timestamp.timestamp(),
     }
 

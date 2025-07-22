@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 
 from aiorwlock import RWLock
 from tortoise import fields
+from tortoise.exceptions import ConfigurationError
 from tortoise.models import Model
 
 from .config import BATCH_SIZE, BATCH_TIMEOUT_MS
@@ -74,6 +75,7 @@ class BoardDataBatchWriter:
     _flush_worker: asyncio.Task | None
     _stop_event: asyncio.Event
     boards_ids: set[int]
+    latest_data: dict[int, BoardData] = {}
 
     def __init__(self, batch_size: int = BATCH_SIZE, timeout: int = BATCH_TIMEOUT_MS) -> None:
         """
@@ -99,6 +101,25 @@ class BoardDataBatchWriter:
         self._flush_worker: asyncio.Task | None = None
         self._stop_event = asyncio.Event()
         self.boards_ids = set()
+        self.latest_data = {}
+        # Fetch the latest data from the database to initialize the latest_data dictionary
+        async def init_latest_data() -> None:
+            """Initializes the latest_data dictionary with the most recent BoardData entries from the database."""
+            try:
+                latest_data = await BoardData.all().order_by("-timestamp").values("board_id", "timestamp", "temperature", "light_intensity", "humidity")
+                for data in latest_data:
+                    self.latest_data[data["board_id"]] = BoardData(
+                        board_id=data["board_id"],
+                        timestamp=data["timestamp"],
+                        temperature=data["temperature"],
+                        light_intensity=data["light_intensity"],
+                        humidity=data["humidity"]
+                    )
+            except ConfigurationError:
+                pass
+                # print(f"Error initializing latest data: {e}")
+        asyncio.get_event_loop().run_until_complete(init_latest_data())
+
 
     @classmethod
     def get_instance(cls, batch_size: int = BATCH_SIZE, timeout: int = BATCH_TIMEOUT_MS) -> "BoardDataBatchWriter":
@@ -205,6 +226,7 @@ class BoardDataBatchWriter:
             self.buffer.append(data)
             if len(self.buffer) >= self.batch_size:
                 should_flush = True
+            self.latest_data[data.board_id] = data
 
         if should_flush:
             await self.flush()
@@ -229,6 +251,7 @@ class BoardDataBatchWriter:
             if not self.buffer:
                 return
             data_to_write, self.buffer = self.buffer, []
+
 
         try:
             await BoardData.bulk_create(data_to_write)
@@ -262,6 +285,28 @@ class BoardDataBatchWriter:
         """
         async with self.lock.writer_lock:
             self.buffer.clear()
+            self.latest_data.clear()
+
+    async def fetch_latest(self, board_ids: list[int] | None) -> list[BoardData]:
+        """
+        Fetches the latest BoardData for a specific board ID.
+
+        Args:
+            board_ids (List[int] | None): The IDs of the boards for which to fetch the latest data.
+
+        Returns:
+            Optional[BoardData]: The latest BoardData object for the specified board ID,
+                                 or None if no data is available.
+
+        """
+        if not board_ids:
+            return []
+        latest_data = []
+        for board_id in board_ids:
+            if board_id in self.latest_data:
+                latest_data.append(self.latest_data[board_id])
+        return latest_data if latest_data else []
+
 
     async def fetch_since(self, since: datetime, board_ids: list[int] | None) -> list[BoardData]:
         """
