@@ -32,7 +32,7 @@ export default function HistoricalTrends ({ data }) {
       <Typography variant="h6" gutterBottom>
         Historical Trends
       </Typography>
-      <ResponsiveContainer width="100%" height={605}>
+      <ResponsiveContainer width="100%" height={625}>
         <ComposedChart data={data} margin={{ top: 10, right: 20, bottom: 5, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
           <XAxis
