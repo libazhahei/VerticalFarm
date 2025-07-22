@@ -7,10 +7,8 @@ from llm.cloud import CloudLLMCache
 
 ai_router = APIRouter(prefix="/ai")
 
-short_router = APIRouter(prefix="/short")
-ai_router.include_router(short_router, tags=["local_llm"])
 
-@short_router.get("/insights")
+@ai_router.get("/insights")
 async def get_insights() -> dict:
     """Endpoint to get insights from the AI model."""
     # Placeholder for AI model insights logic
@@ -33,7 +31,7 @@ async def get_insights() -> dict:
     }
 
 
-@short_router.get("/strategies")
+@ai_router.get("/strategies")
 async def get_strategies() -> list[dict]:
     """Endpoint to get strategies from the AI model."""
     llm_cache = await CloudLLMCache.get_instance()
