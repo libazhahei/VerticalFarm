@@ -68,6 +68,17 @@ class ChainPart1UserInput:
             "target_orientation": self.target_orientation,
             "comments": self.comments
         }
+    
+    @classmethod
+    def from_dict(cls, data: dict) -> "ChainPart1UserInput":
+        return cls(
+            plant=data.get("plant", ""),
+            growth_stage=data.get("growth_stage", ""),
+            target_orientation=data.get("target_orientation", ""),
+            comments=data.get("comments", "")
+        )
+    
+
 
 class DailyPlan:
     def __init__(self, openai_key: str, preplexity_key: str) -> None:

@@ -39,6 +39,7 @@ class GlobalContext:
     ble_service_context: BLEServiceContext | None
     running_mode: RunningMode = RunningMode.AUTO
     running_target: dict
+    plant_settings: dict | None = None
 
     global_context: Optional["GlobalContext"] = None
 
@@ -54,6 +55,8 @@ class GlobalContext:
             "auto": None,
             "manual": None
         }
+        cls.global_context.plant_settings = None
+
 
         return cls.global_context
 
