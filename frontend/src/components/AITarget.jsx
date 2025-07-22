@@ -12,7 +12,7 @@ import {
   Chip
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
-// import { sendRequest } from '../api/Request'; // keep for real API
+import { sendRequest } from '../Request';
 
 const GlassCard = styled(Card)(({ theme }) => ({
   background: theme.palette.background.paper,
@@ -27,25 +27,11 @@ export default function AITarget () {
 
   useEffect(() => {
     // Real API call (commented until ready):
-    // async function fetchTarget() {
-    //   const data = await sendRequest('api/ai/target', 'GET');
-    //   setTarget(data);
-    // }
-    // fetchTarget();
-
-    // —— Fake data for now ——
-    setTarget({
-      day_temperature: [18, 20],
-      night_temperature: [16, 18],
-      humidity: [60, 70],
-      PPFD: [200, 250],
-      DLI: [12, 14],
-      Photoperiod: [
-        { period: '12 hr', light_intensity: 30000 },
-        { period: '12 hr', light_intensity: 1000 }
-      ],
-      data_source: [{ name: 'Hortscience', link: 'https://example.com/hortscience' }]
-    });
+    async function fetchTarget () {
+      const data = await sendRequest('api/ai/target', 'GET');
+      setTarget(data);
+    }
+    fetchTarget();
   }, []);
 
   if (!target) {
@@ -108,7 +94,7 @@ export default function AITarget () {
           {target.Photoperiod.map((p, i) => (
             <li key={i}>
               <Typography variant="body2">
-                <strong>{p.period}:</strong> {p.light_intensity.toLocaleString()} Lux
+                <strong>{p.period}:</strong> {p.light.toLocaleString()} Lux
               </Typography>
             </li>
           ))}
