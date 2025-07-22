@@ -75,18 +75,23 @@ def aggregate_data_by_unit(data: list[BoardData], unit: UnitModel, data_field: s
 
 
 @history_router.get("/all")
-async def get_all_history(unit: UnitModel, start_from: int) -> dict:
+async def get_all_history(unit: UnitModel, start_from: int) -> list:
     """Endpoint to fetch all history data."""
     writer = BoardDataBatchWriter.get_instance()
     history_data = await writer.fetch_since(since=datetime.datetime.fromtimestamp(start_from, tz=ZoneInfo(TIMEZONE)), board_ids=None)
     temp_data = aggregate_data_by_unit(history_data, unit, "temperature", ignore_board=True).get(0, [])
     humidity_data = aggregate_data_by_unit(history_data, unit, "humidity", ignore_board=True).get(0, [])
     light_data = aggregate_data_by_unit(history_data, unit, "light_intensity", ignore_board=True).get(0, [])
-    return {
-        "temperature": temp_data,
-        "humidity": humidity_data,
-        "light_intensity": light_data
-    }
+    # Return something like :
+    # [{timestamp: "2023-10-01T00:00:00", temperature: 25, humidity: 60, light_intensity: 300}, ...]
+    return [
+        {
+            "timestamp": data[0]["timestamp"],
+            "temperature": data[0]["value"] if data[0] is not None else None,
+            "humidity": data[1]["value"] if data[1] is not None else None,
+            "light_intensity": data[2]["value"] if data[2] is not None else None
+        } for data in zip(temp_data, humidity_data, light_data) if data[0] is not None or data[1] is not None or data[2] is not None
+    ]
     
 
 
