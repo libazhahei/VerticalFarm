@@ -25,27 +25,43 @@ const GlassCard = styled(Card)(({ theme }) => ({
 }));
 
 export default function ManualControl (props) {
-  const [mode, setMode] = useState('auto');
+  const [runningMode, setRunningMode] = useState(0); // 0 = auto, 1 = manual
   const [temperature, setTemperature] = useState(25);
   const [humidity, setHumidity] = useState(60);
-  const [light, setLight] = useState(500);
+  const [lightIntensity, setLightIntensity] = useState(500);
   const [loading, setLoading] = useState(false);
-  const [snackbar, setSnackbar] = useState({ open: false, severity: 'success', message: '' });
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    severity: 'success',
+    message: ''
+  });
 
-  const isManual = mode === 'manual';
+  const isManual = runningMode === 1;
 
   const handleConfirm = async () => {
     setLoading(true);
     try {
-      await sendRequest('api/control', 'POST', {
-        mode,
+      const payload = {
+        running_mode: runningMode, // now 0 or 1
         temperature,
         humidity,
-        light
+        light_intensity: lightIntensity
+      };
+
+      const res = await sendRequest('api/control/1', 'POST', payload);
+      console.log('Control response:', res);
+
+      setSnackbar({
+        open: true,
+        severity: 'success',
+        message: 'Control settings updated'
       });
-      setSnackbar({ open: true, severity: 'success', message: 'Control settings updated' });
     } catch (err) {
-      setSnackbar({ open: true, severity: 'error', message: err.message });
+      setSnackbar({
+        open: true,
+        severity: 'error',
+        message: err.message
+      });
     } finally {
       setLoading(false);
     }
@@ -63,19 +79,20 @@ export default function ManualControl (props) {
           ...props.sx
         }}
       >
+        {/* Header */}
         <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
           <Typography variant="subtitle1">Manual Control</Typography>
           <Box display="flex" alignItems="center">
             <Typography
               variant="body2"
-              color={mode === 'auto' ? 'text.secondary' : 'text.primary'}
+              color={runningMode === 0 ? 'text.secondary' : 'text.primary'}
             >
               Auto
             </Typography>
             <Switch
               size="small"
               checked={isManual}
-              onChange={() => setMode(isManual ? 'auto' : 'manual')}
+              onChange={() => setRunningMode(isManual ? 0 : 1)}
             />
             <Typography
               variant="body2"
@@ -86,6 +103,7 @@ export default function ManualControl (props) {
           </Box>
         </Box>
 
+        {/* Temperature */}
         <Box mb={2}>
           <Typography gutterBottom>Temperature ({temperature}°C)</Typography>
           <Slider
@@ -98,6 +116,7 @@ export default function ManualControl (props) {
           />
         </Box>
 
+        {/* Humidity */}
         <Box mb={2}>
           <Typography gutterBottom>Humidity ({humidity}%)</Typography>
           <Slider
@@ -110,11 +129,12 @@ export default function ManualControl (props) {
           />
         </Box>
 
+        {/* Light Intensity */}
         <Box mb={2}>
-          <Typography gutterBottom>Light ({light} lx)</Typography>
+          <Typography gutterBottom>Light ({lightIntensity} lx)</Typography>
           <Slider
-            value={light}
-            onChange={(e, v) => setLight(v)}
+            value={lightIntensity}
+            onChange={(e, v) => setLightIntensity(v)}
             valueLabelDisplay="auto"
             min={0}
             max={2000}
@@ -124,16 +144,21 @@ export default function ManualControl (props) {
 
         <Divider sx={{ my: 2 }} />
 
+        {/* Confirm Button */}
         <Button
           variant="contained"
           fullWidth
           onClick={handleConfirm}
           disabled={!isManual || loading}
         >
-          {loading ? <CircularProgress size={24} color="inherit" /> : 'Confirm Changes'}
+          {loading
+            ? <CircularProgress size={24} color="inherit" />
+            : 'Confirm Changes'
+          }
         </Button>
       </GlassCard>
 
+      {/* Snackbar for feedback */}
       <Snackbar
         open={snackbar.open}
         autoHideDuration={3000}
