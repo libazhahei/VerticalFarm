@@ -1,12 +1,17 @@
 from fastapi.routing import APIRouter
 from pydantic import BaseModel
+
+from .utils import GlobalContext
+
+
 class PlantSettingsSchema(BaseModel):
     """Schema for user settings."""
+
     plant_name: str = "Tomato"
     growth_stage: str = "Seedling"
     notes: str = ""
 
-from .utils import GlobalContext
+
 plant_router = APIRouter(prefix="/plant")
 
 @plant_router.get("/plant-settings")

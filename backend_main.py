@@ -1,4 +1,3 @@
-from ast import List
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -35,7 +34,7 @@ BLE_DEVICES = [1, 2, 3]  # Example BLE devices
 
 # async def init_lower_computer_services() -> tuple[MQTTServiceContext, BLEServiceContext]:
 #     """Initialize MQTT and BLE service contexts."""
-    
+
 #     return mqtt_service, ble_service
 
 @asynccontextmanager # type: ignore
