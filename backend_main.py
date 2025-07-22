@@ -1,3 +1,4 @@
+from ast import List
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -87,12 +88,12 @@ async def read_index(request: Request) -> Any:
     return RedirectResponse(url="/docs")
 
 
-@app.get("/devices")
-async def get_devices() -> dict:
+@app.get("/api/devices")
+async def get_devices() -> list:
     """Endpoint to fetch the list of devices."""
     global_context = GlobalContext.get_instance()
     if global_context.ble_service_context is None:
-        return {"devices": []}
+        return []
     devices = await global_context.mqtt_service_context.alive_devices() if global_context.mqtt_service_context else []
     ble_latest = await BoardDataBatchWriter.get_instance().fetch_latest(devices)
 
@@ -101,11 +102,11 @@ async def get_devices() -> dict:
         if ble_data is not None:
             result.append({
                 "board_id": ble_data.board_id,
-                "last_seen": ble_data.timestamp.timestamp() if ble_data.timestamp else None
+                "last_seen": ble_data.timestamp.timestamp() if ble_data.timestamp else None,
+                "ip_address": "127.0.0.1",
+                "status": "online" if ble_data.board_id in devices else "offline",
             })
-    return {
-        "devices": result
-    }
+    return result
 
 
 @app.exception_handler(Exception)
