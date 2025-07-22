@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom overrides can go below */
+html, body {
+  @apply bg-gray-50;
+}
+
+/* Example card override */
+.card {
+  @apply bg-white rounded-lg shadow-sm;
+}

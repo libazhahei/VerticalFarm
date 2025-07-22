@@ -46,6 +46,12 @@ class QueueMessage:
             retries_left=data["retries_left"]
         )
 
+    def get_message_id(self) -> int | None:
+        """Returns the message ID from the payload."""
+        return self.payload.get_message_id() if self.payload else None
+
+
+
 
 class ControlCommandPublisher:
     """A class responsible for publishing control commands to an MQTT broker and managing message acknowledgments.
@@ -212,7 +218,7 @@ class ControlCommandPublisher:
 
         """
         if message_id not in self.msgs:
-            return
+            raise ValueError(f"Message ID {message_id} not found in msgs.")
         msg_info = self.msgs[message_id]
 
         while msg_info.retries_left > 0:

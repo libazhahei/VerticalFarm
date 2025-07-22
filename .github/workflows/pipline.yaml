@@ -3,6 +3,7 @@ name: Python CI/CD Pipeline
 on:
   push:
     branches:
+      - main
   pull_request:
     branches:
       - main 
