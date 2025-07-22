@@ -88,6 +88,29 @@ export default function PlantInfoDialog ({ open, initialInfo, onClose, onSave })
     onClose();
   };
 
+  //   const handleSave = async () => {
+  //   try {
+  //     const payload = {
+  //       plant_name: formData.name,
+  //       growth_stage: formData.stage,
+  //       notes:       formData.remark
+  //     };
+
+  //     const res = await sendRequest(
+  //       'api/user/plant_info',
+  //       'POST',
+  //       payload
+  //     );
+  //     console.log('Save response:', res);
+
+  //     onSave(formData);
+  //     onClose();
+  //   } catch (err) {
+  //     console.error('Failed to save plant info:', err);
+  //     // Optionally, display an error notification here
+  //   }
+  // };
+
   const handleCancel = () => {
     setFormData(initialInfo);
     onClose();
