@@ -18,7 +18,8 @@ import {
   Divider,
   Avatar,
   useTheme,
-  alpha
+  alpha,
+  CircularProgress
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -27,7 +28,7 @@ import {
   Cancel as CancelIcon,
   Timeline as StageIcon
 } from '@mui/icons-material';
-
+import { sendRequest } from '../Request';
 const plantStages = [
   'Seedling',
   'Vegetative',
@@ -64,58 +65,45 @@ const getStageColor = (stage) => {
 
 export default function PlantInfoDialog ({ open, initialInfo, onClose, onSave }) {
   const theme = useTheme();
-  const [formData, setFormData] = useState({
-    name: '',
-    stage: '',
-    remark: ''
-  });
+  const [formData, setFormData] = useState({ name: '', stage: '', remark: '' });
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (initialInfo) {
-      setFormData(initialInfo);
+      setFormData({ name: initialInfo.name, stage: initialInfo.stage, remark: initialInfo.remark });
+    }
+  }, [initialInfo]);
+  useEffect(() => {
+    if (initialInfo) {
+      setFormData({ name: initialInfo.name, stage: initialInfo.stage, remark: initialInfo.remark });
     }
   }, [initialInfo]);
 
-  const handleInputChange = (field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+  const handleInputChange = (k, v) => setFormData(fd => ({ ...fd, [k]: v }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const payload = {
+        plant_name: formData.name,
+        growth_stage: formData.stage,
+        notes: formData.remark
+      };
+      await sendRequest('api/plant/plant-settings', 'POST', payload);
+      onSave(formData);
+      onClose();
+    } catch (err) {
+      console.error('Failed to save plant settings:', err);
+      // optionally show an alert here
+    } finally {
+      setSaving(false);
+    }
   };
-
-  const handleSave = () => {
-    onSave(formData);
-    onClose();
-  };
-
-  //   const handleSave = async () => {
-  //   try {
-  //     const payload = {
-  //       plant_name: formData.name,
-  //       growth_stage: formData.stage,
-  //       notes:       formData.remark
-  //     };
-
-  //     const res = await sendRequest(
-  //       'api/user/plant_info',
-  //       'POST',
-  //       payload
-  //     );
-  //     console.log('Save response:', res);
-
-  //     onSave(formData);
-  //     onClose();
-  //   } catch (err) {
-  //     console.error('Failed to save plant info:', err);
-  //     // Optionally, display an error notification here
-  //   }
-  // };
 
   const handleCancel = () => {
-    setFormData(initialInfo);
+    setFormData({ name: initialInfo.name, stage: initialInfo.stage, remark: initialInfo.remark });
     onClose();
   };
-
   return (
 <Dialog
   open={open}
@@ -429,27 +417,31 @@ export default function PlantInfoDialog ({ open, initialInfo, onClose, onSave })
         >
           Cancel
         </Button>
-        <Button
-          onClick={handleSave}
-          variant="contained"
-          startIcon={<SaveIcon />}
-          sx={{
-            borderRadius: 2,
-            px: 3,
-            py: 1,
-            textTransform: 'none',
-            fontWeight: 600,
-            background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-            boxShadow: theme.shadows[4],
-            '&:hover': {
-              background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.secondary.dark} 100%)`,
-              boxShadow: theme.shadows[8],
-              transform: 'translateY(-1px)'
-            }
-          }}
-        >
-          Save Changes
-        </Button>
+  <Button
+    onClick={handleSave}
+    variant="contained"
+    disabled={saving}
+    startIcon={<SaveIcon />}
+    sx={{
+      borderRadius: 2,
+      px: 3,
+      py: 1,
+      textTransform: 'none',
+      fontWeight: 600,
+      background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+      boxShadow: theme.shadows[4],
+      '&:hover': {
+        background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.secondary.dark} 100%)`,
+        boxShadow: theme.shadows[8],
+        transform: 'translateY(-1px)'
+      }
+    }}
+  >
+    {saving
+      ? <CircularProgress size={20} color="inherit" />
+      : 'Save Changes'
+    }
+  </Button>
       </DialogActions>
     </Dialog>
   );

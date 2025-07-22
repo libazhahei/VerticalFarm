@@ -49,11 +49,7 @@ export default function DashboardPage () {
   const [boards, setBoards] = useState([]);
   const [timestamp, setTimestamp] = useState('');
   const [plantDialogOpen, setPlantDialogOpen] = useState(false);
-  const [plantInfo, setPlantInfo] = useState({
-    name: 'Lettuce',
-    stage: 'Vegetative',
-    remark: 'Slightly yellow leaves – monitoring closely.'
-  });
+  const [plantInfo, setPlantInfo] = useState('');
 
   useEffect(() => {
     async function fetchBoards () {
@@ -70,6 +66,25 @@ export default function DashboardPage () {
         console.error('Failed to fetch board statuses:', err);
       }
     }
+
+    // 2) fetch saved plant settings
+    async function fetchPlantSettings () {
+      try {
+        const data = await sendRequest('api/plant/plant-settings', 'GET');
+        // assume API returns { plant_name, growth_stage, notes }
+        setPlantInfo({
+          name: data.plant_name,
+          stage: data.growth_stage,
+          remark: data.notes
+        });
+      } catch (err) {
+        // if backend says "Plant settings not found.", just leave default
+        if (!err.message.includes('Plant settings not found')) {
+          console.error('Failed to fetch plant settings:', err);
+        }
+      }
+    }
+    fetchPlantSettings();
     fetchBoards();
   }, []);
 
