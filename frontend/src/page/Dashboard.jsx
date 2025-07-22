@@ -29,32 +29,7 @@ import DeviceManagement from '../components/DeviceManagement';
 import ManualControl from '../components/ManualControl';
 import PlantInfoDialog from '../components/PlantInfoDialog';
 import theme from '../theme';
-
-const fakeData = {
-  timestamp: '2025-07-16T10:00:00Z',
-  boards: [
-    { board_id: 1, temperature: 24.5, humidity: 70, light: 500, fan: 1, led: 0, online: true },
-    { board_id: 2, temperature: 26.1, humidity: 65, light: 450, fan: 0, led: 1, online: true },
-    { board_id: 3, temperature: 23.8, humidity: 72, light: 610, fan: 1, led: 1, online: false },
-    { board_id: 4, temperature: 23.8, humidity: 72, light: 610, fan: 1, led: 1, online: false }
-  ]
-};
-
-const historyData = [
-  { timestamp: '06:00', temperature: 20.1, humidity: 80, light: 150 },
-  { timestamp: '07:00', temperature: 21.3, humidity: 78, light: 300 },
-  { timestamp: '08:00', temperature: 22.5, humidity: 75, light: 450 },
-  { timestamp: '09:00', temperature: 23.8, humidity: 72, light: 600 },
-  { timestamp: '10:00', temperature: 25.2, humidity: 68, light: 750 },
-  { timestamp: '11:00', temperature: 26.0, humidity: 65, light: 900 },
-  { timestamp: '12:00', temperature: 27.1, humidity: 62, light: 1050 },
-  { timestamp: '13:00', temperature: 27.8, humidity: 60, light: 1150 },
-  { timestamp: '14:00', temperature: 27.5, humidity: 61, light: 1100 },
-  { timestamp: '15:00', temperature: 26.9, humidity: 63, light: 950 },
-  { timestamp: '16:00', temperature: 26.2, humidity: 66, light: 800 },
-  { timestamp: '17:00', temperature: 25.0, humidity: 70, light: 600 },
-  { timestamp: '18:00', temperature: 23.7, humidity: 75, light: 400 }
-];
+import { sendRequest } from '../Request';
 
 const getStageColor = (stage) => {
   const stageColors = {
@@ -81,8 +56,21 @@ export default function DashboardPage () {
   });
 
   useEffect(() => {
-    setTimestamp(fakeData.timestamp);
-    setBoards(fakeData.boards);
+    async function fetchBoards () {
+      try {
+        // IDs 1 through 4
+        const ids = [1, 2, 3, 4];
+        const responses = await Promise.all(
+          ids.map(id => sendRequest(`api/board/${id}/status/`, 'GET'))
+        );
+        // Timestamp now
+        setTimestamp(new Date().toISOString());
+        setBoards(responses);
+      } catch (err) {
+        console.error('Failed to fetch board statuses:', err);
+      }
+    }
+    fetchBoards();
   }, []);
 
   return (
@@ -241,7 +229,7 @@ export default function DashboardPage () {
             <Grid item xs={12} md={8}>
               <OverviewSection boards={boards} />
               <Box sx={{ mt: 2 }}>
-                <HistoricalTrends data={historyData} />
+                <HistoricalTrends />
               </Box>
             </Grid>
             <Grid item xs={12} md={4}>
