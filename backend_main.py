@@ -18,6 +18,7 @@ from route.ai import ai_router
 from route.control import control_router
 from route.history import history_router
 from route.others import other_router
+from route.plant import plant_router
 from route.utils import GlobalContext, fake_lower_computer_services
 
 logging.basicConfig(
@@ -73,6 +74,7 @@ app.include_router(other_router, prefix="/api", tags=["others"])
 app.include_router(history_router, prefix="/ap", tags=["history"])
 app.include_router(ai_router, prefix="/api", tags=["ai"])
 app.include_router(control_router, prefix="/api", tags=["control"])
+app.include_router(plant_router, prefix="/api", tags=["plant"])
 # CORS middleware to allow requests from the frontend
 app.add_middleware(
     CORSMiddleware,

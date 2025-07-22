@@ -109,6 +109,6 @@ async def get_verification() -> list[dict]:
     return [{
         "task": f"if {verification['condition']} {verification['detection_period']}",
         "todo": f"Equipment Limitation Considered: {verification['equipment_limitation_considered']}. \n"
-                 f"Location Season Weather Considered: {verification['location_season_weather_considered']}. \n"
+                 f"Location Season Weather Considered: {verification['location_season_weather_factors']}. \n"
                  f"Action Required: {verification['recovery_suggestion']}. \n",
     } for verification in verifications]

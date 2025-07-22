@@ -58,3 +58,5 @@ async def update_board(board_id: int, data: ControlMsgSchema) -> dict:
     })
 
     return { "mode": str(GlobalContext.get_instance().running_mode)}
+
+
