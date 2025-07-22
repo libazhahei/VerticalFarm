@@ -31,12 +31,11 @@ def test_get_devices(monkeypatch):
     monkeypatch.setattr('route.utils.GlobalContext.get_instance', lambda: DummyContext())
     monkeypatch.setattr('data.tables.BoardDataBatchWriter.get_instance', lambda: DummyWriter())
 
-    response = client.get('/devices')
+    response = client.get('/api/devices')
     assert response.status_code == 200
-    assert 'devices' in response.json()
-    assert len(response.json()['devices']) == 2
-    assert response.json()['devices'][0]['board_id'] == 1
-    assert response.json()['devices'][1]['board_id'] == 2
+    assert len(response.json()) == 2
+    assert response.json()[0]['board_id'] == 1
+    assert response.json()[1]['board_id'] == 2
 
 
 # You can add more tests for other routes if needed
@@ -62,7 +61,7 @@ def test_get_verification(monkeypatch):
                     'condition': 'cond',
                     'detection_period': 'period',
                     'equipment_limitation_considered': True,
-                    'location_season_weather_considered': True,
+                    'location_season_weather_factors': True,
                     'recovery_suggestion': 'suggest'
                 }
             ]

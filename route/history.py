@@ -34,6 +34,7 @@ def aggregate_data_by_unit(data: list[BoardData], unit: UnitModel, data_field: s
         data (list[BoardData]): List of BoardData objects to aggregate.
         unit (UnitModel): The unit to aggregate by (day, hour, minute, second, ms) every unit.
         data_field (str): The field in BoardData to aggregate (e.g., "temperature", "humidity", "light_intensity").
+        ignore_board (bool): If True, aggregates data across all boards, otherwise keeps board_id distinction.
 
     Returns:
         Dict[int, list[BoardData]]: A dictionary where keys are board_ids and values
@@ -90,9 +91,9 @@ async def get_all_history(unit: UnitModel, start_from: int) -> list:
             "temperature": data[0]["value"] if data[0] is not None else None,
             "humidity": data[1]["value"] if data[1] is not None else None,
             "light_intensity": data[2]["value"] if data[2] is not None else None
-        } for data in zip(temp_data, humidity_data, light_data) if data[0] is not None or data[1] is not None or data[2] is not None
+        } for data in zip(temp_data, humidity_data, light_data, strict=False) if data[0] is not None or data[1] is not None or data[2] is not None
     ]
-    
+
 
 
 @history_router.post("/temperature")
