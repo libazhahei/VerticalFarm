@@ -5,6 +5,12 @@ from ctransformers import AutoModelForCausalLM
 
 HOST = 'localhost'
 PORT = 5000
+SUCCESS_CODE = 200
+MESSAGE_TYPE_ERROR = 400
+NO_CASE_ERROR = 401
+PROMPT_PARSE_ERROR = 402
+
+cases = ""
 
 def get_commands(message, llm):
     try:
@@ -15,28 +21,30 @@ def get_commands(message, llm):
         humidity = data.get("humidity")
         lightIntensity = data.get("lightIntensity")
         fan_speed = data.get("fan")
-        led = data.get("led")
         prompt = f'''
         ### Instruction:
         This is an micro-climate sensor data over 15 minutes (1 reading per minute per sensor).
-        The sensor reports temperature (°C), humidity (%RH), and light intensity (PAR µmol/m²/s).
+        The sensor reports temperature (°C), humidity (%RH), and light intensity (lux).
 
-        Please identify if the climate is too hot (avg temp > 30°C), too dry (avg RH < 50%), or underlit (avg PAR < 100).
-        The current fan speed and led brightness are {{"fan": {fan_speed}, "led": {led}}}
-        If the climate is too hot, increase the fan speed; otherwise, decrease it.
-        If the climate is too dry, decrease the LED brightness. otherwise, increase it.
-        If the climate is underlit, increase the LED brightness. otherwise, decrease it.
-        Return a JSON control command to adjust fan (range: 0-255) and LED (range: 0-255) accordingly.
-
+        Please find out which case the environment is now and output the control commands in response.
         Example response format:
-        {{"fan": 90, "led": 30}}
+        {{"fan": 1500, "led": 2000}}
 
-        ### Data:
-
+        ### Environment Data:
         temperature: {temperature}
         humidity: {humidity}
         light intensity: {lightIntensity}
-
+        
+        ### Cases
+        {str(cases)}
+        
+        Case_ID: The edition of case
+        Condition_IF: Condition of case
+        Diagnosis_Tradeoff_Analysis: Diagnosis tradeoff analysis of case
+        Primary_Control_Priority: Primary control priority of case
+        Prioritized_Action_Chain: Control commands, which you should output in response
+        15 min_Goal_and_Tradeoff: Goal and Tradeoff in next 15 minutes
+        
         ### Response:
 
         '''
@@ -48,12 +56,33 @@ def get_commands(message, llm):
     except json.JSONDecodeError:
         return json.dumps({"error": "Invalid JSON"})
 
+def process_prompt(message):
+    global cases
+
+    data = json.loads(message)
+    response = {"request_id": data["type"]}
+    cases = data.get("cases")
+
+    if cases:
+        response["code"] = SUCCESS_CODE
+        return response
+    else:
+        response["code"] = PROMPT_PARSE_ERROR
+        return response
+
+
 def handle_client(conn, addr):
     print(f"client {addr} connecting")
     try:
-        data = conn.recv(4096).decode()
-        if data:
-            response = get_commands(data, llm)
+        message = conn.recv(4096).decode()
+        if message:
+            data = json.loads(message)
+            if data["type"] == 0:
+                response = get_commands(data, llm)
+            elif data["type"] == 1:
+                response = process_prompt(data)
+            else:
+                response = {"request_id": data["type"], "code": MESSAGE_TYPE_ERROR}
             conn.sendall(response.encode())
     except Exception as e:
         print(f"client {addr} error：{e}")
@@ -79,3 +108,4 @@ if __name__ == "__main__":
         context_length=1024,
         gpu_layers=50
     )
+    run_server()
