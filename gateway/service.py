@@ -449,6 +449,28 @@ class MQTTServiceContext:
             raise TypeError("Message must be an instance of StatusMsg")
         await self.control_cmd_pub.add_msg(message, SUBSCRIBE_CTRL_MSG_TOPIC)
 
+    async def setBoardExpectEnv(self, board_id: int, temperature: float, PAR: float) -> None:
+        """
+        Set the expected environment for a board by sending a control command with the given temperature and PAR (light intensity)。
+
+        Args:
+            board_id (int): The ID of the board to control.
+            temperature (float): The target temperature (0-100).
+            PAR (float): The target PAR/light intensity (0-100)。
+        """
+        from .msg import ControlMsg, Mode
+        # PAR -》 light_intensity，formula：int(PAR * 20.105)
+        light_intensity = int(PAR * 20.105)
+        ctrl_msg = ControlMsg(
+            board_id=board_id,
+            mode=Mode.ABSOLUTE,
+            fan=0,
+            led=0,
+            temperature=temperature,
+            light_intensity=light_intensity
+        )
+        await self.publish_control_command(ctrl_msg)
+
 
 class BLEClientWrapper:
     """
