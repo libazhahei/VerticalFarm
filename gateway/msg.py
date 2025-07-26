@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
+import struct
 
 
 class IDGenerator:
@@ -295,24 +296,26 @@ class SensorDataMsg(BLEMessageType):
         return byte_array
 
     @classmethod
-    def from_byte_array(cls, byte_array: bytearray) -> 'SensorDataMsg':
-        board_id = byte_array[0]
-        temperature = int.from_bytes(byte_array[1:3], byteorder='little', signed=True) / 100.0
-        light_intensity = int.from_bytes(byte_array[3:5], byteorder='little', signed=False)
-        fans_real = int.from_bytes(byte_array[5:7], byteorder='little', signed=False)
-        humidity = int.from_bytes(byte_array[7:9], byteorder='little', signed=False) / 100.0
-        status = SensorStatus(int.from_bytes(byte_array[9:10], byteorder='little', signed=False))
-        fans_abs = int.from_bytes(byte_array[10:11], byteorder='little', signed=False)
-        led_abs = int.from_bytes(byte_array[11:12], byteorder='little', signed=False)
+    def from_byte_array(cls, data: bytearray) -> 'SensorDataMsg':
+
+        board_id = data[0]
+        temp_raw = struct.unpack('>H', data[1:3])[0]
+        light = struct.unpack('>H', data[3:5])[0]
+        fan = struct.unpack('>H', data[5:7])[0]
+        humidity_raw = struct.unpack('>H', data[7:9])[0]
+        status = data[9]
+        fan_pwm = data[10]
+        light_pwm = data[11]
+
         return cls(
             board_id=board_id,
-            temperature=temperature,
-            light_intensity=light_intensity,
-            fans_real=fans_real,
-            humidity=humidity,
+            temperature=temp_raw / 100.0,
+            light_intensity=light,
+            fans_real=fan,
+            humidity=humidity_raw / 100.0,
             status=status,
-            fans_abs=fans_abs,
-            led_abs=led_abs,
+            fans_abs=fan_pwm,
+            led_abs=light_pwm,
             timestamp=datetime.now().timestamp()
         )
 

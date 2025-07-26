@@ -27,9 +27,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 MQTT_BROKER_HOST = "localhost"
-MQTT_BROKER_PORT = 1883
+MQTT_BROKER_PORT = 5001
 MQTT_CLIENT_ID = "test_client"
-BLE_DEVICES = [1, 2, 3]  # Example BLE devices
+BLE_DEVICES = [1]  # Example BLE devices
 
 
 # async def init_lower_computer_services() -> tuple[MQTTServiceContext, BLEServiceContext]:
@@ -122,4 +122,5 @@ if __name__ == "__main__":
     print("Starting FastAPI application...")
 
     logger.info("Starting FastAPI application with lifespan context manager.")
-    run(app, host="127.0.0.1", port=8000, log_level="info", reload=True)
+    # run(app, host="127.0.0.1", port=8000, log_level="info", reload=True)
+    run(app, host="127.0.0.1", port=8000, log_level="info")
