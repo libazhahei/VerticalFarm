@@ -14,7 +14,7 @@ from gateway.constants import TIMEZONE, get_characteristic_uuid
 from gateway.msg import MQTTMessageType, SensorDataMsg, SensorStatus
 from gateway.service import BLEServiceContext, MQTTServiceContext
 
-FAKE_LOWER_COMPUTER_COMMUNICATION = True  # Set to True for testing purposes
+FAKE_LOWER_COMPUTER_COMMUNICATION = False  # Set to True for testing purposes
 
 global exit_fake_loop 
 exit_fake_loop = False

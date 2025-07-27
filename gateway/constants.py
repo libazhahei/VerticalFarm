@@ -43,18 +43,21 @@ TIMEZONE = "Australia/Sydney"  # Default timezone for the application
 
 def get_service_uuid(board_id: int) -> str:
     """Generates a service UUID based on the board ID."""
+    print(f'Board ID = {board_id}')
     if not (DEVICE_MIN_ID <= board_id <= DEVICE_MAX_ID):
         raise ValueError(f"Board ID must be between {DEVICE_MIN_ID} and {DEVICE_MAX_ID}, got {board_id}.")
     return f"{SERVICE_UUID_PREFIX}{board_id:012x}"
 
 def get_characteristic_uuid(board_id: int) -> str:
     """Generates a characteristic UUID based on the board ID."""
+    print(f'Board ID = {board_id}')
     if not (DEVICE_MIN_ID <= board_id <= DEVICE_MAX_ID):
         raise ValueError(f"Board ID must be between {DEVICE_MIN_ID} and {DEVICE_MAX_ID}, got {board_id}.")
     return f"{CHARACTERISTIC_UUID_PREFIX}{board_id:012x}"
 
 def get_device_name(board_id: int) -> str:
     """Generates a device name based on the board ID."""
+    print(f'Board ID = {board_id}')
     if not (DEVICE_MIN_ID <= board_id <= DEVICE_MAX_ID):
         raise ValueError(f"Board ID must be between {DEVICE_MIN_ID} and {DEVICE_MAX_ID}, got {board_id}.")
     return f"{DEVICE_PREFIX}{board_id}"
