@@ -30,6 +30,7 @@ from .subscriber import (
     MessageDispatcher,
     SensorDataSubscriber,
 )
+import traceback
 
 
 class MqttClientWrapper:
@@ -636,13 +637,15 @@ class BLEClientWrapper:
                     await client.connect()
                     print(f"BLE: Connected to device {device.name} (ID: {board_id}).")
 
+                    '''
                     for _board_id in self._characteristic_parsers.keys():
-                        try:
-                            char_uuid = get_characteristic_uuid(_board_id)
-                            await client.start_notify(char_uuid, self.on_ble_notification)
-                            print(f"BLE: Subscribed to {char_uuid} on {device.name}.")
-                        except BleakError as e:
-                            print(f"BLE: Could not subscribe to {char_uuid} on {device.name}: {e}")
+                    '''
+                    try:
+                        char_uuid = get_characteristic_uuid(board_id)
+                        await client.start_notify(char_uuid, self.on_ble_notification)
+                        print(f"BLE: Subscribed to {char_uuid} on {device.name}.")
+                    except BleakError as e:
+                        print(f"BLE: Could not subscribe to {char_uuid} on {device.name}: {e}")
 
             except BleakError as e:
                 print(f"BLE: Connection/subscription error with {device.name} (ID: {board_id}): {e}. Retrying in {RECONNECTION_DELAY_SECONDS}s...")
@@ -655,6 +658,7 @@ class BLEClientWrapper:
                 break 
             except Exception as e:
                 print(f"BLE: Unexpected error in connection task for {device.name} (ID: {board_id}): {e}. Retrying in {RECONNECTION_DELAY_SECONDS}s...")
+                traceback.print_exception(e)
                 if client and client.is_connected:
                     await client.disconnect()
                 client = None
@@ -768,34 +772,6 @@ class BLEClientWrapper:
         return any(client.is_connected for client in self.ble_clients.values())
 
 class BLEServiceContext:
-    """
-    BLEServiceContext is a service context for managing BLE (Bluetooth Low Energy) operations. 
-    It encapsulates the BLE client, message dispatcher, and batch writer, providing methods 
-    to start, stop, and interact with BLE devices.
-
-    Attributes:
-        ble_sub (SensorDataSubscriber): Subscriber for sensor data.
-        msg_dispatcher (MessageDispatcher): Dispatcher for handling messages.
-        ble_client (BLEClientWrapper): Wrapper for BLE client operations.
-        is_running (bool): Indicates whether the service is currently running.
-        _asyncio_loop (asyncio.AbstractEventLoop | None): The asyncio event loop used by the service.
-        batch_writer (BatchWriter): Writer for batching data operations.
-
-    Methods:
-        __init__(device_id_list: List[int]) -> None:
-            Initializes the BLEServiceContext with a list of device IDs.
-        async start() -> None:
-            Starts the BLE service context, initializing all components and setting up the event loop.
-        async stop() -> None:
-            Stops the BLE service context, shutting down all components.
-        is_connected() -> bool:
-            Checks if the BLE client is currently connected.
-        connected_devices() -> List[int]:
-            Retrieves a list of IDs for devices that are currently connected.
-        async fetch_data(since: datetime, board_ids: Optional[List[int]]) -> List[BoardData]:
-            Fetches all data since a given timestamp, optionally filtered by board IDs.
-
-    """
 
     ble_sub: SensorDataSubscriber
     msg_dispatcher: MessageDispatcher
@@ -805,22 +781,6 @@ class BLEServiceContext:
     batch_writer: BoardDataBatchWriter
 
     def __init__(self, device_id_list: list[int] ) -> None:
-        """
-        Initializes the service with the necessary components for BLE communication 
-        and message handling.
-
-        Args:
-            device_id_list (List[int]): A list of device IDs to be used for BLE communication.
-
-        Attributes:
-            msg_dispatcher (MessageDispatcher): Handles the dispatching of messages.
-            batch_writer (BatchWriter): Responsible for batch writing operations.
-            ble_sub (SensorDataSubscriber): Subscribes to sensor data and processes it.
-            ble_client (BLEClientWrapper): Manages BLE communication with the specified devices.
-            _asyncio_loop (Optional[asyncio.AbstractEventLoop]): The asyncio event loop used for asynchronous operations.
-            is_running (bool): Indicates whether the service is currently running.
-
-        """
         self.msg_dispatcher = MessageDispatcher()
         self.batch_writer = BoardDataBatchWriter.get_instance()
         self.ble_sub = SensorDataSubscriber(self.batch_writer)
@@ -840,18 +800,6 @@ class BLEServiceContext:
 
 
     async def start(self) -> None:
-        """
-        Starts the BLE Service Context if it is not already running.
-
-        This method initializes the asyncio event loop and sets the service 
-        to a running state. It starts the batch writer, message dispatcher, 
-        and BLE client asynchronously. If the service is already running, 
-        it logs a message and exits without restarting.
-
-        Returns:
-            None
-
-        """
         if self.is_running:
             print("BLE Service Context: Already running, cannot start again.")
             return
