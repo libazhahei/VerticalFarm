@@ -1,5 +1,6 @@
 import asyncio
 import threading
+import traceback
 from collections.abc import Callable
 from datetime import datetime
 from typing import Any
@@ -22,7 +23,15 @@ from .constants import (
     SUBSCRIBE_HEARTBEAT_TOPIC,
     get_characteristic_uuid,
 )
-from .msg import BLEMessageType, ControlMsg, HeartbeatMsg, MQTTMessageType, SensorDataMsg, StatusMsg
+from .msg import (
+    BLEMessageType,
+    ControlMsg,
+    HeartbeatMsg,
+    Mode,
+    MQTTMessageType,
+    SensorDataMsg,
+    StatusMsg,
+)
 from .publisher import ControlCommandPublisher
 from .subscriber import (
     CommandResponseSubscriber,
@@ -30,7 +39,6 @@ from .subscriber import (
     MessageDispatcher,
     SensorDataSubscriber,
 )
-import traceback
 
 
 class MqttClientWrapper:
@@ -75,7 +83,13 @@ class MqttClientWrapper:
     mqtt_client: Client
     dispatcher: MessageDispatcher
 
-    def __init__(self, dispatcher: MessageDispatcher, mqtt_broker_host: str, mqtt_broker_port: int = 1883, client_id: str = ""):
+    def __init__(
+        self,
+        dispatcher: MessageDispatcher,
+        mqtt_broker_host: str,
+        mqtt_broker_port: int = 1883,
+        client_id: str = "",
+    ):
         self.dispatcher = dispatcher
         self.mqtt_client = Client(client_id=client_id)
         self.mqtt_client.on_connect = self._on_connect
@@ -86,7 +100,9 @@ class MqttClientWrapper:
         self._asyncio_loop: asyncio.AbstractEventLoop | None = None
         self._topic_parsers: dict[str, Callable[[str], MQTTMessageType]] = {}
 
-    def register_topic_handler(self, topic: str, parser_func: Callable[[str], MQTTMessageType])-> None:
+    def register_topic_handler(
+        self, topic: str, parser_func: Callable[[str], MQTTMessageType]
+    ) -> None:
         """
         Registers a handler function for a specific MQTT topic and subscribes to the topic if the MQTT client is connected.
 
@@ -107,7 +123,7 @@ class MqttClientWrapper:
         if self.mqtt_client.is_connected():
             self.mqtt_client.subscribe(topic)
 
-    def _on_connect(self, client: Client, userdata: Any, flags: dict, rc: int)-> None:
+    def _on_connect(self, client: Client, userdata: Any, flags: dict, rc: int) -> None:
         """
         Handles the MQTT connection event.
 
@@ -121,7 +137,7 @@ class MqttClientWrapper:
             client (Client): The MQTT client instance that triggered the connection event.
             userdata: User-defined data passed to the callback (unused in this method).
             flags (dict): Response flags sent by the broker.
-            rc (int): The connection result code. A value of 0 indicates success, 
+            rc (int): The connection result code. A value of 0 indicates success,
                       while other values indicate failure.
 
         """
@@ -132,7 +148,7 @@ class MqttClientWrapper:
         else:
             print(f"MQTT: Connection failed with code {rc}")
 
-    def _on_message(self, client: Client, userdata: Any, msg: MQTTMessage)-> None:
+    def _on_message(self, client: Client, userdata: Any, msg: MQTTMessage) -> None:
         """
         Handles incoming MQTT messages, decodes the payload, and processes the message using a registered parser function.
 
@@ -155,7 +171,7 @@ class MqttClientWrapper:
             Exception: If an error occurs during message parsing or dispatching.
 
         """
-        decoded_payload = msg.payload.decode('utf-8')
+        decoded_payload = msg.payload.decode("utf-8")
         parser_func = self._topic_parsers.get(msg.topic)
         if parser_func:
             try:
@@ -165,9 +181,13 @@ class MqttClientWrapper:
                         self.dispatcher.put_message(internal_msg), self._asyncio_loop
                     )
                 else:
-                    print("MQTT: Error: Asyncio loop not running or not set, cannot dispatch message.")
+                    print(
+                        "MQTT: Error: Asyncio loop not running or not set, cannot dispatch message."
+                    )
             except Exception as e:
-                print(f"MQTT: Error parsing or dispatching message from topic {msg.topic}: {e}")
+                print(
+                    f"MQTT: Error parsing or dispatching message from topic {msg.topic}: {e}"
+                )
         else:
             print(f"MQTT: No parser registered for topic: {msg.topic}")
 
@@ -175,20 +195,20 @@ class MqttClientWrapper:
         """
         Starts the MQTT client's loop in a separate thread.
 
-        This method runs the MQTT client's `loop_forever` function, which 
-        continuously processes network traffic, dispatches callbacks, and 
-        handles reconnecting in case of disconnection. It is intended to 
-        be executed in a separate thread to ensure non-blocking behavior 
+        This method runs the MQTT client's `loop_forever` function, which
+        continuously processes network traffic, dispatches callbacks, and
+        handles reconnecting in case of disconnection. It is intended to
+        be executed in a separate thread to ensure non-blocking behavior
         for the rest of the application.
 
         Note:
-            Ensure that the MQTT client is properly configured before 
+            Ensure that the MQTT client is properly configured before
             invoking this method.
 
         """
         self.mqtt_client.loop_forever()
 
-    async def start(self) -> None :
+    async def start(self) -> None:
         """
         Starts the MQTT client and initializes the asyncio loop.
 
@@ -209,7 +229,9 @@ class MqttClientWrapper:
         self._asyncio_loop = asyncio.get_running_loop()
         print("MQTT: Connecting to broker...")
         self.mqtt_client.connect(self.mqtt_broker_host, self.mqtt_broker_port, 60)
-        self._mqtt_thread = threading.Thread(target=self._mqtt_loop_in_thread, daemon=True)
+        self._mqtt_thread = threading.Thread(
+            target=self._mqtt_loop_in_thread, daemon=True
+        )
         self._mqtt_thread.start()
         print("MQTT: Client started in background thread.")
         await asyncio.sleep(0.5)
@@ -242,6 +264,7 @@ class MqttClientWrapper:
 
         """
         return self.mqtt_client.is_connected()
+
 
 class MQTTServiceContext:
     """MQTTServiceContext manages the MQTT service context for the VerticalFarm gateway.
@@ -284,7 +307,9 @@ class MQTTServiceContext:
     control_cmd_pub: ControlCommandPublisher
     command_status_sub: CommandResponseSubscriber
 
-    def __init__(self, broker_host: str, broker_port: int = 1883, client_id: str = "mqtt_client") -> None:
+    def __init__(
+        self, broker_host: str, broker_port: int = 1883, client_id: str = "mqtt_client"
+    ) -> None:
         """
         Initializes the service with MQTT clients, message dispatchers, and subscribers.
 
@@ -308,7 +333,8 @@ class MQTTServiceContext:
         self.publish_client = Client(client_id=f"{client_id}_publisher")
         self.borker_info = (broker_host, broker_port)
         self.control_cmd_pub = ControlCommandPublisher(
-            mqtt_client=self.publish_client, is_alive_func=self.heartbeat_sub.is_alive)
+            mqtt_client=self.publish_client, is_alive_func=self.heartbeat_sub.is_alive
+        )
         self.command_status_sub = CommandResponseSubscriber(
             acknowledge_func=self.control_cmd_pub.acknowledge
         )
@@ -316,31 +342,27 @@ class MQTTServiceContext:
             dispatcher=self.msg_dispatcher,
             mqtt_broker_host=broker_host,
             mqtt_broker_port=broker_port,
-            client_id=f"{client_id}_subscriber"
+            client_id=f"{client_id}_subscriber",
         )
         self.subscribe_client.register_topic_handler(
-        SUBSCRIBE_HEARTBEAT_TOPIC, HeartbeatSubscriber.parse_json
+            SUBSCRIBE_HEARTBEAT_TOPIC, HeartbeatSubscriber.parse_json
         )
         self.subscribe_client.register_topic_handler(
             SUBSCRIBE_CTRL_MSG_TOPIC, CommandResponseSubscriber.parse_json
         )
-        self.msg_dispatcher.register_handler(
-            HeartbeatMsg, self.heartbeat_sub.handle
-        )
-        self.msg_dispatcher.register_handler(
-            StatusMsg, self.command_status_sub.handle
-        )
+        self.msg_dispatcher.register_handler(HeartbeatMsg, self.heartbeat_sub.handle)
+        self.msg_dispatcher.register_handler(StatusMsg, self.command_status_sub.handle)
 
     async def start(self) -> None:
         """
-        Starts the MQTT service context by initializing and starting the 
+        Starts the MQTT service context by initializing and starting the
         subscription client and message dispatcher.
 
-        This method is asynchronous and ensures that the necessary components 
+        This method is asynchronous and ensures that the necessary components
         for the MQTT service are properly started before proceeding.
 
         Raises:
-            Any exceptions raised by `subscribe_client.start()` or 
+            Any exceptions raised by `subscribe_client.start()` or
             `msg_dispatcher.start()` will propagate from this method.
             Connection errors or issues with the MQTT broker may also raise exceptions.
 
@@ -352,7 +374,7 @@ class MQTTServiceContext:
 
     async def stop(self) -> None:
         """
-        Stops the MQTT service context by shutting down the subscribe client 
+        Stops the MQTT service context by shutting down the subscribe client
         and message dispatcher.
 
         This method performs the following actions:
@@ -360,11 +382,11 @@ class MQTTServiceContext:
         2. Stops the message dispatcher to halt message processing.
         3. Prints a confirmation message indicating the service context has stopped.
 
-        This is an asynchronous method and should be awaited to ensure proper 
+        This is an asynchronous method and should be awaited to ensure proper
         shutdown of the components.
 
         Raises:
-            Any exceptions raised during the stopping of the subscribe client 
+            Any exceptions raised during the stopping of the subscribe client
             or message dispatcher will propagate to the caller.
 
         """
@@ -426,11 +448,13 @@ class MQTTServiceContext:
         Check if both the subscribe client and publish client are connected.
 
         Returns:
-            bool: True if both the subscribe client and publish client are connected, 
+            bool: True if both the subscribe client and publish client are connected,
                   False otherwise.
 
         """
-        return self.subscribe_client.is_connected() and self.publish_client.is_connected()
+        return (
+            self.subscribe_client.is_connected() and self.publish_client.is_connected()
+        )
 
     async def publish_control_command(self, message: MQTTMessageType) -> None:
         """
@@ -450,33 +474,33 @@ class MQTTServiceContext:
             raise TypeError("Message must be an instance of StatusMsg")
         await self.control_cmd_pub.add_msg(message, SUBSCRIBE_CTRL_MSG_TOPIC)
 
-    async def setBoardExpectEnv(self, board_id: int, temperature: float, PAR: float) -> None:
+    async def set_board_expect_env(
+        self, board_id: int, temperature: float, par: float
+    ) -> None:
         """
-        Set the expected environment for a board by sending a control command with the given temperature and PAR (light intensity)。
+        Set the expected environment for a board by sending a control command with the given temperature and PAR (light intensity).
 
         Args:
             board_id (int): The ID of the board to control.
             temperature (float): The target temperature (0-100).
-            PAR (float): The target PAR/light intensity (0-100)。
+            par (float): The target PAR/light intensity (0-100).
         """
-        from .msg import ControlMsg, Mode
-        # PAR -》 light_intensity，formula：int(PAR * 20.105)
-        light_intensity = int(PAR * 20.105)
+        light_intensity = int(par * 20.105)
         ctrl_msg = ControlMsg(
             board_id=board_id,
             mode=Mode.ABSOLUTE,
             fan=0,
             led=0,
             temperature=temperature,
-            light_intensity=light_intensity
+            light_intensity=light_intensity,
         )
         await self.publish_control_command(ctrl_msg)
 
 
 class BLEClientWrapper:
     """
-    BLEClientWrapper is a class designed to manage Bluetooth Low Energy (BLE) connections and notifications 
-    for multiple devices. It provides functionality to connect to BLE devices, subscribe to notifications, 
+    BLEClientWrapper is a class designed to manage Bluetooth Low Energy (BLE) connections and notifications
+    for multiple devices. It provides functionality to connect to BLE devices, subscribe to notifications,
     and handle incoming data.
 
     Attributes:
@@ -506,13 +530,15 @@ class BLEClientWrapper:
     """
 
     dispatcher: MessageDispatcher
-    device_id_lists: set[int] 
+    device_id_lists: set[int]
     ble_clients: dict[int, BleakClient]
     is_running: bool
     ble_devices: dict[int, BLEDevice | None]
     connection_tasks: dict[int, asyncio.Task]
 
-    def __init__(self, device_id_lists: list[int], dispatcher: MessageDispatcher) -> None:
+    def __init__(
+        self, device_id_lists: list[int], dispatcher: MessageDispatcher
+    ) -> None:
         """
         Initializes the service with the provided device IDs and message dispatcher.
 
@@ -541,13 +567,15 @@ class BLEClientWrapper:
         self._characteristic_parsers = {}
         self.connection_tasks = {}
 
-    def register_notification_handler(self, board_id: int, handler: Callable[[bytearray], BLEMessageType]) -> None:
+    def register_notification_handler(
+        self, board_id: int, handler: Callable[[bytearray], BLEMessageType]
+    ) -> None:
         """
         Registers a notification handler for a specific board ID.
 
         This method associates a handler function with a given board ID. The handler
         function will be invoked whenever a notification is received for the specified
-        board. The handler is expected to process the incoming data and return a 
+        board. The handler is expected to process the incoming data and return a
         BLEMessageType.
 
         Args:
@@ -563,7 +591,9 @@ class BLEClientWrapper:
         """
         self._characteristic_parsers[get_characteristic_uuid(board_id)] = handler
 
-    async def on_ble_notification(self, characteristic: BleakGATTCharacteristic , data: bytearray) -> None:
+    async def on_ble_notification(
+        self, characteristic: BleakGATTCharacteristic, data: bytearray
+    ) -> None:
         """
         Handles BLE notifications received from a specific characteristic.
 
@@ -594,7 +624,9 @@ class BLEClientWrapper:
                 internal_msg = parser_func(data)
                 await self.dispatcher.put_message(internal_msg)
             except Exception as e:
-                print(f"BLE: Error parsing or dispatching BLE notification for {char_uuid} (data: {data.hex()}): {e}")
+                print(
+                    f"BLE: Error parsing or dispatching BLE notification for {char_uuid} (data: {data.hex()}): {e}"
+                )
         else:
             print(f"BLE: No parser registered for characteristic: {char_uuid}")
 
@@ -602,9 +634,9 @@ class BLEClientWrapper:
         """
         Establishes a connection to a BLE device and subscribes to its notifications.
 
-        This asynchronous method attempts to connect to the specified BLE device and 
-        subscribes to notifications for characteristics associated with the given board ID. 
-        It handles reconnection attempts in case of errors or disconnections and ensures 
+        This asynchronous method attempts to connect to the specified BLE device and
+        subscribes to notifications for characteristics associated with the given board ID.
+        It handles reconnection attempts in case of errors or disconnections and ensures
         proper cleanup during shutdown.
 
         Args:
@@ -617,9 +649,9 @@ class BLEClientWrapper:
             Exception: For any unexpected errors during the connection process.
 
         Notes:
-            - The method uses a reconnection delay defined by `RECONNECTION_DELAY_SECONDS` 
+            - The method uses a reconnection delay defined by `RECONNECTION_DELAY_SECONDS`
               to retry connections in case of failures.
-            - Subscriptions are attempted for all characteristics defined in 
+            - Subscriptions are attempted for all characteristics defined in
               `self._characteristic_parsers`.
             - The `disconnected_callback` is used to handle disconnection events.
             - Proper cleanup is performed by disconnecting the client during shutdown.
@@ -629,42 +661,59 @@ class BLEClientWrapper:
         while self.is_running:
             try:
                 if client is None:
-                    client = BleakClient(device, disconnected_callback=lambda c: print(f"BLE: Disconnected from {device.name} (ID: {board_id})"))
-                    self.ble_clients[board_id] = client # Store the client instance
+                    client = BleakClient(
+                        device,
+                        disconnected_callback=lambda c: print(
+                            f"BLE: Disconnected from {device.name} (ID: {board_id})"
+                        ),
+                    )
+                    self.ble_clients[board_id] = client  # Store the client instance
 
                 if not client.is_connected:
-                    print(f"BLE: Connecting to device {device.name} (ID: {board_id})...")
+                    print(
+                        f"BLE: Connecting to device {device.name} (ID: {board_id})..."
+                    )
                     await client.connect()
                     print(f"BLE: Connected to device {device.name} (ID: {board_id}).")
 
-                    '''
+                    """
                     for _board_id in self._characteristic_parsers.keys():
-                    '''
+                    """
                     try:
                         char_uuid = get_characteristic_uuid(board_id)
                         await client.start_notify(char_uuid, self.on_ble_notification)
                         print(f"BLE: Subscribed to {char_uuid} on {device.name}.")
                     except BleakError as e:
-                        print(f"BLE: Could not subscribe to {char_uuid} on {device.name}: {e}")
+                        print(
+                            f"BLE: Could not subscribe to {char_uuid} on {device.name}: {e}"
+                        )
 
             except BleakError as e:
-                print(f"BLE: Connection/subscription error with {device.name} (ID: {board_id}): {e}. Retrying in {RECONNECTION_DELAY_SECONDS}s...")
+                print(
+                    f"BLE: Connection/subscription error with {device.name} (ID: {board_id}): {e}. Retrying in {RECONNECTION_DELAY_SECONDS}s..."
+                )
                 if client and client.is_connected:
-                    await client.disconnect() 
-                client = None 
+                    await client.disconnect()
+                client = None
                 await asyncio.sleep(RECONNECTION_DELAY_SECONDS)
             except asyncio.CancelledError:
-                print(f"BLE: Connection task for {device.name} (ID: {board_id}) cancelled.")
-                break 
+                print(
+                    f"BLE: Connection task for {device.name} (ID: {board_id}) cancelled."
+                )
+                break
             except Exception as e:
-                print(f"BLE: Unexpected error in connection task for {device.name} (ID: {board_id}): {e}. Retrying in {RECONNECTION_DELAY_SECONDS}s...")
+                print(
+                    f"BLE: Unexpected error in connection task for {device.name} (ID: {board_id}): {e}. Retrying in {RECONNECTION_DELAY_SECONDS}s..."
+                )
                 traceback.print_exception(e)
                 if client and client.is_connected:
                     await client.disconnect()
                 client = None
                 await asyncio.sleep(RECONNECTION_DELAY_SECONDS)
         if client and client.is_connected:
-            print(f"BLE: Disconnecting client for {device.name} (ID: {board_id}) during shutdown.")
+            print(
+                f"BLE: Disconnecting client for {device.name} (ID: {board_id}) during shutdown."
+            )
             await client.disconnect()
         print(f"BLE: Connection task for {device.name} (ID: {board_id}) finished.")
 
@@ -703,7 +752,9 @@ class BLEClientWrapper:
         while founded_devices != self.device_id_lists and max_explore_tries > 0:
             max_explore_tries -= 1
             print(f"BLE: Exploring devices, remaining tries: {max_explore_tries}")
-            devices = await BleakScanner.discover(timeout=MAX_EXPOLATION_TIMEOUT_SECONDS)
+            devices = await BleakScanner.discover(
+                timeout=MAX_EXPOLATION_TIMEOUT_SECONDS
+            )
             for device in devices:
                 if device.name and device.name.startswith(DEVICE_PREFIX):
                     try:
@@ -712,14 +763,22 @@ class BLEClientWrapper:
                             founded_devices.add(board_id)
                             if self.ble_devices[board_id] is None:
                                 self.ble_devices[board_id] = device
-                                print(f"BLE: Found and initialized client for board ID {board_id}.")
+                                print(
+                                    f"BLE: Found and initialized client for board ID {board_id}."
+                                )
                     except ValueError as e:
-                        print(f"BLE: Error parsing board ID from device name '{device.name}': {e}")
+                        print(
+                            f"BLE: Error parsing board ID from device name '{device.name}': {e}"
+                        )
             if founded_devices != self.device_id_lists and max_explore_tries > 0:
-                print(f"BLE: Not all devices found yet, retrying in {EXPOLATION_RETRY_DELAY_SECONDS}s...")
+                print(
+                    f"BLE: Not all devices found yet, retrying in {EXPOLATION_RETRY_DELAY_SECONDS}s..."
+                )
                 await asyncio.sleep(EXPOLATION_RETRY_DELAY_SECONDS)
         if founded_devices != self.device_id_lists:
-            print(f"BLE: Not all devices found after exploration: {self.device_id_lists - founded_devices}.")
+            print(
+                f"BLE: Not all devices found after exploration: {self.device_id_lists - founded_devices}."
+            )
             self.is_running = False
             return
         for board_id, device in self.ble_devices.items():
@@ -771,7 +830,12 @@ class BLEClientWrapper:
         """
         return any(client.is_connected for client in self.ble_clients.values())
 
+
 class BLEServiceContext:
+    """
+    BLEServiceContext manages the lifecycle of BLE connections and message dispatching
+    for the VerticalFarm system.
+    """
 
     ble_sub: SensorDataSubscriber
     msg_dispatcher: MessageDispatcher
@@ -780,17 +844,14 @@ class BLEServiceContext:
     _asyncio_loop: asyncio.AbstractEventLoop | None
     batch_writer: BoardDataBatchWriter
 
-    def __init__(self, device_id_list: list[int] ) -> None:
+    def __init__(self, device_id_list: list[int]) -> None:
         self.msg_dispatcher = MessageDispatcher()
         self.batch_writer = BoardDataBatchWriter.get_instance()
         self.ble_sub = SensorDataSubscriber(self.batch_writer)
         self.ble_client = BLEClientWrapper(
-            device_id_lists=device_id_list,
-            dispatcher=self.msg_dispatcher
+            device_id_lists=device_id_list, dispatcher=self.msg_dispatcher
         )
-        self.msg_dispatcher.register_handler(
-            SensorDataMsg, self.ble_sub.handle
-        )
+        self.msg_dispatcher.register_handler(SensorDataMsg, self.ble_sub.handle)
         for device_id in device_id_list:
             self.ble_client.register_notification_handler(
                 device_id, self.ble_sub.parse_bytes
@@ -798,8 +859,11 @@ class BLEServiceContext:
         self._asyncio_loop = None
         self.is_running = False
 
-
     async def start(self) -> None:
+        """
+        Starts the BLE service context by initializing the BLE client,
+        batch writer, and message dispatcher.
+        """
         if self.is_running:
             print("BLE Service Context: Already running, cannot start again.")
             return
@@ -843,6 +907,7 @@ class BLEServiceContext:
 
         """
         return self.ble_client.is_connected()
+
     def connected_devices(self) -> list[int]:
         """
         Asynchronously retrieves a list of IDs for devices that are currently connected.
@@ -853,7 +918,9 @@ class BLEServiceContext:
         """
         return list(self.ble_client.ble_devices.keys())
 
-    async def fetch_data(self, since: datetime, board_ids: list[int] | None) -> list[BoardData]:
+    async def fetch_data(
+        self, since: datetime, board_ids: list[int] | None
+    ) -> list[BoardData]:
         """
         Fetches all data since a timestamp, optionally filtered by board_ids.
 
@@ -866,5 +933,3 @@ class BLEServiceContext:
 
         """
         return await self.batch_writer.fetch_since(since, board_ids)
-
-
