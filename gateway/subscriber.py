@@ -372,7 +372,6 @@ class MessageDispatcher:
         while self.running:
             try:
                 msg: MQTTMessageType = await self.message_queue.get()
-                # print(f"Dispatching message: {msg}")
                 if type(msg) in self.subscribers:
                     asyncio.create_task(self.dispatch(msg))
                 else:
