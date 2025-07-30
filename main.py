@@ -1,11 +1,14 @@
 import asyncio
 from datetime import datetime, timedelta
+from time import sleep
+
+from tortoise import Tortoise
 
 from data.config import init_schema
 from gateway import ControlMsg, MQTTServiceContext
 from gateway.service import BLEServiceContext
-from time import sleep 
-from tortoise import Tortoise
+
+
 async def main() -> None:
     """Main function to demonstrate the usage of MQTTServiceContext and BLEServiceContext."""
     mqtt_service_context = MQTTServiceContext(broker_host="localhost", broker_port=5001, client_id="test_client")
