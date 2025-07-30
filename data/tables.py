@@ -337,7 +337,7 @@ class BoardDataBatchWriter:
         buf_data = await self.fetch()
         filtered_buf_data = [
             data for data in buf_data
-            if data.timestamp is not None and data.timestamp >= since and (not board_ids or data.board_id in board_ids)
+            if data.timestamp is not None and data.timestamp >= utc_since and (not board_ids or data.board_id in board_ids)
         ]
         filtered_buf_data.sort(key=lambda x: x.timestamp, reverse=True)
         print(f"Fetched {len(db_data)} from DB and {len(filtered_buf_data)} from buffer since {since}")
