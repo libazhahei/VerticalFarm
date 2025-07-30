@@ -617,7 +617,6 @@ class BLEClientWrapper:
 
         """
         char_uuid = str(characteristic.uuid)
-
         parser_func = self._characteristic_parsers.get(char_uuid)
         if parser_func:
             try:
@@ -661,6 +660,7 @@ class BLEClientWrapper:
         while self.is_running:
             try:
                 if client is None:
+                    print(device.address)
                     client = BleakClient(
                         device,
                         disconnected_callback=lambda c: print(
@@ -679,14 +679,18 @@ class BLEClientWrapper:
                     """
                     for _board_id in self._characteristic_parsers.keys():
                     """
+
                     try:
-                        char_uuid = get_characteristic_uuid(board_id)
-                        await client.start_notify(char_uuid, self.on_ble_notification)
+                        for char_uuid in self._characteristic_parsers.keys():
+                            # char_uuid = get_characteristic_uuid(board_id)
+                            print(char_uuid)
+                            await client.start_notify(char_uuid, self.on_ble_notification)
                         print(f"BLE: Subscribed to {char_uuid} on {device.name}.")
                     except BleakError as e:
                         print(
                             f"BLE: Could not subscribe to {char_uuid} on {device.name}: {e}"
                         )
+                await asyncio.sleep(10)
 
             except BleakError as e:
                 print(
@@ -783,7 +787,7 @@ class BLEClientWrapper:
             return
         for board_id, device in self.ble_devices.items():
             if board_id in founded_devices and device is not None:
-                task = asyncio.create_task(self.connect_and_subscribe(board_id, device))
+                task = asyncio.create_task(self.connect_and_subscribe(board_id, device)) 
                 self.connection_tasks[board_id] = task
 
     async def stop(self) -> None:
@@ -809,9 +813,12 @@ class BLEClientWrapper:
         self.is_running = False
         print("BLE: Stopping BLE clients...")
         for _, task in self.connection_tasks.items():
-            if task and not task.done():
+            if task and hasattr(task, "done") and not task.done():
                 task.cancel()
-        await asyncio.gather(*self.connection_tasks.values(), return_exceptions=True)
+        # Only gather tasks that are not None and are awaitable
+        tasks_to_await = [task for task in self.connection_tasks.values() if task is not None and hasattr(task, "__await__")]
+        if tasks_to_await:
+            await asyncio.gather(*tasks_to_await, return_exceptions=True)
         for client in self.ble_clients.values():
             if client and client.is_connected:
                 await client.disconnect()
@@ -870,8 +877,8 @@ class BLEServiceContext:
         self._asyncio_loop = asyncio.get_running_loop()
         self.is_running = True
         print("BLE Service Context: Starting BLE clients...")
-        await self.batch_writer.start()
         await self.msg_dispatcher.start()
+        await self.batch_writer.start()
         await self.ble_client.start()
         print("BLE Service Context started.")
 
@@ -896,6 +903,7 @@ class BLEServiceContext:
         await self.batch_writer.stop()
         await self.msg_dispatcher.stop()
         await self.ble_client.stop()
+        await BoardDataBatchWriter.get_instance().flush()
         print("BLE Service Context stopped.")
 
     def is_connected(self) -> bool:
