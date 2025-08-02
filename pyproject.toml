@@ -8,6 +8,7 @@ exclude = [
     "**/msg.py",
     "**/llm/*.py",
     "**/env_observer.py",
+    "**/parser.py",
     ".venv",
     "venv",
     "env",
