@@ -1,15 +1,17 @@
 import asyncio
+import os
+import sqlite3
 from datetime import datetime
 from typing import Optional
 from zoneinfo import ZoneInfo
 
 from aiorwlock import RWLock
-from tortoise import Tortoise, fields
+from tortoise import fields
 from tortoise.exceptions import ConfigurationError
 from tortoise.models import Model
+
 from .config import BATCH_SIZE, BATCH_TIMEOUT_MS
-import os
-import sqlite3
+
 
 class BoardData(Model): 
     """
@@ -343,7 +345,7 @@ class BoardDataBatchWriter:
         print(f"Fetched {len(db_data)} from DB and {len(filtered_buf_data)} from buffer since {since}")
         return db_data + filtered_buf_data
 
-    async def clearAll(self) -> None:
+    async def clear_all(self) -> None:
         """
         Clears the buffer and remove all data from database.
 
@@ -389,4 +391,3 @@ class BoardDataBatchWriter:
         print(f"Backup completed to {backup_path}")
 
 
-        
