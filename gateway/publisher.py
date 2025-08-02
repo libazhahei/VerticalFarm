@@ -228,9 +228,10 @@ class ControlCommandPublisher:
                 break
             published = self.safe_publish(msg_info.payload, msg_info.topic)
             if not published:
-                print(f"[PUBLISH FAILED] Retrying message {message_id}, retries left: {msg_info.retries_left}")
+                print(f"[PUBLISH FAILED] Retrying message {message_id}, retries left: {msg_info.retries_left}. This may indicate publish failure.")
                 self.fail_msg(message_id)
-                return
+                await asyncio.sleep(self.timeout)  # Wait before retrying
+                continue
             try:
                 await asyncio.wait_for(msg_info.stop_event.wait(), timeout=self.timeout)
                 return  # Acknowledged, exit the loop
