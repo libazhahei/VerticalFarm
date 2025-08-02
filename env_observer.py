@@ -1,17 +1,17 @@
 import asyncio
-from datetime import datetime, timedelta
-import time
-from tortoise import Tortoise
-import logging
-import sys
-
-from data.config import init_schema
-from gateway import ControlMsg, MQTTServiceContext
-from gateway.service import BLEServiceContext
-from data.tables import BoardData, BoardDataBatchWriter
-from gateway.msg import ControlMsg, Mode
 import math
 import os
+import sys
+from datetime import datetime, timedelta
+
+from tortoise import Tortoise
+
+from data.config import init_schema
+from data.tables import BoardData, BoardDataBatchWriter
+from gateway import ControlMsg, MQTTServiceContext
+from gateway.msg import ControlMsg, Mode
+from gateway.service import BLEServiceContext
+
 BOARD_ID = [1]
 
 async def get_current_data(timeout: timedelta = timedelta(seconds=5)) -> tuple[list[BoardData], int]:
@@ -111,8 +111,8 @@ async def main() -> None:
             print("Temperature increased after LED heating.")
         else:
             raise ValueError("Temperature did not increase after LED heating.")
-        await data_writer.backup(f"testdata/board_data_backup_light_100.json")
-        await data_writer.clearAll()
+        await data_writer.backup("testdata/board_data_backup_light_100.json")
+        await data_writer.clear_all()
 
         # -------------- Test Cooling ----------------
         print("Testing cooling...")
@@ -127,7 +127,7 @@ async def main() -> None:
             raise ValueError("Temperature did not decrease after cooling.")
 
         # -------------- Test LED Levels ----------------
-        await data_writer.clearAll()
+        await data_writer.clear_all()
         print("Testing LED levels...")
         print("Current average temperature:", after_tmp)
         for level in [20, 40, 50, 60, 80]:
@@ -135,7 +135,7 @@ async def main() -> None:
             await led_heating(mqtt_service_context, led_level=level)
             current_temp = await get_average_temperature()
             await data_writer.backup(f"testdata/board_data_backup_light_{level}.json")
-            await data_writer.clearAll()
+            await data_writer.clear_all()
             print(f"Average temperature after LED level {level}%: {current_temp:.2f}°C")
 
 
@@ -146,12 +146,12 @@ async def main() -> None:
             await fan_control(mqtt_service_context, fan_level=level, timeout=timedelta(minutes=3))
             current_temp = await get_average_temperature()
             await data_writer.backup(f"testdata/board_data_backup_fan_{level}.json")
-            await data_writer.clearAll()
+            await data_writer.clear_all()
             print(f"Average temperature after fan level {level}%: {current_temp:.2f}°C")
 
     except Exception as e:
         print(f"An error occurred: {e}")
-    
+
     finally:
         await mqtt_service_context.stop()
         await ble_service_context.stop()
