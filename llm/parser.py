@@ -55,12 +55,13 @@ class OverallTarget(BaseModel):
 
 # P3 Output Model
 class StrategyDetail(BaseModel):
-    Case_ID: str
-    Condition_IF: str
-    Diagnosis_Tradeoff_Analysis: str
-    Primary_Control_Priority: str
-    Prioritized_Action_Chain: List[str]
-    _15_min_Goal_and_Tradeoff: str = Field(..., alias="15 min_Goal_and_Tradeoff")
+    id: str = Field(..., alias="Case_ID")
+    condition: str = Field(..., alias="Condition_IF")
+    reasoning: str = Field(..., alias="Diagnosis_Tradeoff_Analysis")
+    control_priority: str = Field(..., alias="Primary_Control_Priority")
+    action_priority: List[str] = Field(..., alias="Prioritized_Action_Chain")
+    risk_level: str = Field(..., alias="Risk_level")
+    tradeoff: str = Field(..., alias="15 min_Goal_and_Tradeoff")
 
 class LocalStrategies(BaseModel):
     cases: List[StrategyDetail]
