@@ -313,7 +313,7 @@ class SensorDataMsg(BLEMessageType):
             light_intensity=light,
             fans_real=fan,
             humidity=humidity_raw / 100.0,
-            status=status,
+            status=SensorStatus(status),
             fans_abs=fan_pwm,
             led_abs=light_pwm,
             timestamp=datetime.now().timestamp()

@@ -4,12 +4,12 @@ from typing import Optional
 from zoneinfo import ZoneInfo
 
 from aiorwlock import RWLock
-from tortoise import fields
+from tortoise import Tortoise, fields
 from tortoise.exceptions import ConfigurationError
 from tortoise.models import Model
-
 from .config import BATCH_SIZE, BATCH_TIMEOUT_MS
-
+import os
+import sqlite3
 
 class BoardData(Model): 
     """
@@ -342,3 +342,51 @@ class BoardDataBatchWriter:
         filtered_buf_data.sort(key=lambda x: x.timestamp, reverse=True)
         print(f"Fetched {len(db_data)} from DB and {len(filtered_buf_data)} from buffer since {since}")
         return db_data + filtered_buf_data
+
+    async def clearAll(self) -> None:
+        """
+        Clears the buffer and remove all data from database.
+
+        This method acquires a writer lock to ensure thread-safe access to the buffer
+        and clears both the buffer and the latest data dictionary.
+
+        Returns:
+            None
+
+        """
+        async with self.lock.writer_lock:
+            self.buffer.clear()
+            self.latest_data.clear()
+        await BoardData.all().delete()
+        print("All data cleared from buffer and database.")
+
+    async def backup(self, backup_path: str) -> None:
+        """
+        Write buffer into database, then export all data from database into a backup database.
+
+        This method is used to ensure that all buffered data is written to the database.
+        It acquires a writer lock to ensure thread-safe access to the buffer and then
+        calls the `flush` method to write the data.
+
+        Returns:
+            None
+
+        """
+        async with self.lock.writer_lock:
+            await self.flush()
+
+        db_path = os.getenv('DATABASE_URL', ':memory:')
+        if db_path == ':memory:':
+            print("Cannot backup in-memory database.")
+            return
+        src_conn = sqlite3.connect(db_path)
+        dst_conn = sqlite3.connect(backup_path)
+        with dst_conn:
+            src_conn.backup(dst_conn)
+
+        src_conn.close()
+        dst_conn.close()
+        print(f"Backup completed to {backup_path}")
+
+
+        

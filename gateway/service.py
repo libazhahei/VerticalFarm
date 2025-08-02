@@ -18,6 +18,7 @@ from .constants import (
     EXPOLATION_RETRY_DELAY_SECONDS,
     MAX_EXPLORATION_TRIES,
     MAX_EXPOLATION_TIMEOUT_SECONDS,
+    PUBLISH_CTRL_MSG_TOPIC,
     RECONNECTION_DELAY_SECONDS,
     SUBSCRIBE_CTRL_MSG_TOPIC,
     SUBSCRIBE_HEARTBEAT_TOPIC,
@@ -472,7 +473,7 @@ class MQTTServiceContext:
         """
         if not isinstance(message, ControlMsg):
             raise TypeError("Message must be an instance of StatusMsg")
-        await self.control_cmd_pub.add_msg(message, SUBSCRIBE_CTRL_MSG_TOPIC)
+        await self.control_cmd_pub.add_msg(message, PUBLISH_CTRL_MSG_TOPIC)
 
     async def set_board_expect_env(
         self, board_id: int, temperature: float, par: float
