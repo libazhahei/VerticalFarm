@@ -5,6 +5,7 @@ import json
 import aiorwlock
 from attr import dataclass
 from langchain_core.output_parsers import JsonOutputParser
+from llm.parser import OnlineResult, OverallTarget, LocalStrategies, CloudLLMOutput
 
 # import openai
 from langchain_core.prompts import PromptTemplate
@@ -85,17 +86,24 @@ class DailyPlan:
         self.preplexity_key = preplexity_key
         self.openai_key = openai_key
 
-    def demo_data(self) -> Dict[str, str]:
+    def demo_data(self) -> CloudLLMOutput:
         """
-        Returns a dictionary with demo data for testing purposes.
+        Returns a dictionary with demo data for testing purposes, parsed into models.
         """
-        return {
-            "p1_output": json.loads(open("llm/p1_output.json", "r").read()),
-            "p2_output": json.loads(open("llm/p2_output.json", "r").read()),
-            "p3_output": json.loads(open("llm/p3_output.json", "r").read())
-        }
+        with open("llm/p1_output.json", "r") as f1:
+            p1 = OnlineResult.model_validate_json(f1.read())
+        with open("llm/p2_output.json", "r") as f2:
+            p2 = OverallTarget.model_validate_json(f2.read())
+        with open("llm/p3_output.json", "r") as f3:
+            p3 = LocalStrategies.model_validate_json(f3.read())
 
-    def _search_knowledge(self, curr_status: ChainPart1UserInput) -> dict:
+        return CloudLLMOutput(
+            p1_output=p1,
+            p2_output=p2,
+            p3_output=p3
+        )
+
+    def _search_knowledge(self, curr_status: ChainPart1UserInput):
         P1_prompt_template = """
         ## Role and Task
         You are an agricultural science research assistant. 
@@ -149,8 +157,9 @@ class DailyPlan:
         response_1 = chain_part1.invoke(
             curr_status.to_dict(),
         )
+        from llm.parser import OnlineResult
         response_1_json = json_parser_p1.invoke(response_1)
-        return response_1_json
+        return OnlineResult.model_validate(response_1_json)
 
     def _prepare_input(self, original_input_json: dict, p1_output: dict) -> dict:
         return {
@@ -179,7 +188,7 @@ class DailyPlan:
         "environmental_humidity": 51  # Example value, adjust as needed
     }
 
-    async def _generate_general_target(self, curr_status: ChainPart1UserInput, p1_output: dict) -> dict:
+    async def _generate_general_target(self, curr_status: ChainPart1UserInput, p1_output) -> OverallTarget:
         P2_prompt_template = """
 
         ## Role & Context
@@ -266,12 +275,11 @@ class DailyPlan:
         json_parser_p2 = JsonOutputParser()
         chain_part2 = P2_prompt | task2_llm | json_parser_p2
         p2_input = self._prepare_input(curr_status.to_dict(), p1_output)
-        response_2 = chain_part2.ainvoke(
-            p2_input
-        )
-        return await response_2
+        from llm.parser import OverallTarget
+        response_2 = await chain_part2.ainvoke(p2_input)
+        return OverallTarget.model_validate(response_2)
 
-    async def _generate_strategy(self, curr_status: ChainPart1UserInput, p1_output: dict) -> dict:
+    async def _generate_strategy(self, curr_status: ChainPart1UserInput, p1_output) -> LocalStrategies:
         P3_prompt_template = """
         ## Core Task & Role
 
@@ -385,12 +393,11 @@ class DailyPlan:
         json_parser_p3 = JsonOutputParser()
         chain_part3 = P3_prompt | task3_llm | json_parser_p3
         p3_input = self._prepare_input(curr_status.to_dict(), p1_output)
-        response_3 = chain_part3.ainvoke(
-            p3_input
-        )
-        return await response_3
+        from llm.parser import LocalStrategies
+        response_3 = await chain_part3.ainvoke(p3_input)
+        return LocalStrategies.model_validate(response_3)
 
-    async def generate_daily_plan(self, curr_status: ChainPart1UserInput) -> dict:
+    async def generate_daily_plan(self, curr_status: ChainPart1UserInput) -> CloudLLMOutput:
         """
         Generate a daily plan based on the current status and user input.
         
@@ -398,15 +405,15 @@ class DailyPlan:
         :return: A dictionary containing the daily plan with all necessary information.
         """
         p1_output = self._search_knowledge(curr_status)
-        p2_output, p3_output = asyncio.gather(
+        p2_output, p3_output = await asyncio.gather(
             self._generate_general_target(curr_status, p1_output),
             self._generate_strategy(curr_status, p1_output)
         )
-        return {
-            "p1_output": p1_output,
-            "p2_output": p2_output,
-            "p3_output": p3_output
-        }
+        return CloudLLMOutput(
+            p1_output=p1_output,
+            p2_output=p2_output,
+            p3_output=p3_output
+        )
 
 class LLMCacheKey(str, Enum):
     DAILY_PLAN = "daily_plan"
@@ -416,7 +423,7 @@ class LLMCacheKey(str, Enum):
 class CloudLLMCache: 
     _instance: Optional["CloudLLMCache"] = None
     _lock = aiorwlock.RWLock()
-    _cache: Dict[str, dict] = {}
+    _cache: Dict[str, CloudLLMOutput] = {}
 
     @classmethod
     async def get_instance(cls) -> "CloudLLMCache":
@@ -425,36 +432,15 @@ class CloudLLMCache:
                 cls._instance = CloudLLMCache()
         return cls._instance
 
-    async def get(self, key: str, sector: LLMCacheKey = LLMCacheKey.DAILY_PLAN) -> Optional[dict]:
+    async def get_plan(self) -> Optional[CloudLLMOutput]:
         async with self._lock.reader_lock:
-            return self._cache[sector].get(key, None)
+            return self._cache.get(LLMCacheKey.DAILY_PLAN, None)
 
-    async def access(self, accessor: Callable[[dict], Any], default: Any = None, sector: LLMCacheKey = LLMCacheKey.DAILY_PLAN) -> Any:
-        """
-        Access the cache with a callable that processes the cached data.
-        
-        :param accessor: A callable that takes the cached data and returns a processed result.
-        :param default: Default value to return if the key is not found.
-        :return: Processed result from the cache or default value.
-        """
-        async with self._lock.reader_lock:
-            try:
-                return accessor(self._cache[sector])
-            except KeyError:
-                return default
-
-    async def set(self, key: str, value: dict) -> None:
+    async def set_plan(self, plan: CloudLLMOutput) -> None:
         async with self._lock.writer_lock:
-            self._cache[key] = value
+            self._cache[LLMCacheKey.DAILY_PLAN] = plan
 
-    async def refresh_plan(self, planner: DailyPlan, curr_status: ChainPart1UserInput, demo: bool = False) -> dict:
-        """
-        Refresh the daily plan by generating a new one based on the current status.
-        
-        :param planner: DailyPlan object to generate the plan.
-        :param curr_status: ChainPart1UserInput object containing the current status and user input.
-        :return: A dictionary containing the refreshed daily plan.
-        """
+    async def refresh_plan(self, planner: DailyPlan, curr_status: ChainPart1UserInput, demo: bool = False) -> CloudLLMOutput:
         async with self._lock.writer_lock:
             if demo:
                 new_plan = planner.demo_data()
