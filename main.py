@@ -1,5 +1,8 @@
 import asyncio
 from datetime import datetime, timedelta
+from time import sleep
+
+from tortoise import Tortoise
 
 from data.config import init_schema
 from gateway import ControlMsg, MQTTServiceContext
@@ -23,12 +26,15 @@ async def main() -> None:
 
         ctrl_msg = ControlMsg(board_id=1)
         await mqtt_service_context.publish_control_command(ctrl_msg)
-        print("BLE connected devices:", ble_service_context.connected_devices())
+        for _ in range(1):
+            print("BLE connected devices:", ble_service_context.connected_devices())
+            sleep(10)
         data = await ble_service_context.fetch_data(since=datetime.now() - timedelta(days=1), board_ids=[1])
         print(f"Fetched data: {data}")
     finally:
         await mqtt_service_context.stop()
         await ble_service_context.stop()
+        await Tortoise.close_connections()
 
 
 if __name__ == "__main__":
