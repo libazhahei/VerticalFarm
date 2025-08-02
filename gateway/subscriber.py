@@ -139,20 +139,15 @@ class HeartbeatSubscriber(GenericSubscriber):
               for considering a device as alive.
 
         """
-        stoped_devices = -1
         if DEVICE_MIN_ID <= board_id <= DEVICE_MAX_ID:
             async with self.lock.reader_lock:
-                device_status = self.alive_devices[board_id]
-            if device_status != -1:
+                deq_no, last_seen = self.alive_devices[board_id]
+            if deq_no != -1:
                 current_time = datetime.now().timestamp()
-                _, last_timestamp = device_status
-                if current_time - last_timestamp < SUBSCRIBE_HEARTBEAT_TIMEOUT_SECONDS:
+                if abs(current_time - last_seen) < SUBSCRIBE_HEARTBEAT_TIMEOUT_SECONDS:
                     return True
-                else:
-                    stoped_devices = board_id
-        if stoped_devices != -1:
-            async with self.lock.writer_lock:
-                self.alive_devices[stoped_devices] = (-1, -1)
+        async with self.lock.writer_lock:
+            self.alive_devices[board_id] = (-1, -1)
         return False
 
     async def get_alive_devices(self) -> list[int]:
