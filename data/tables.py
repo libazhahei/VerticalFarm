@@ -159,7 +159,10 @@ class BoardDataBatchWriter:
         """
         global db_writer
         if db_writer is None:
+            print("[BDB Writer] Creating new database writer.")
             db_writer = cls(batch_size=batch_size, timeout=timeout)
+        else:
+            print ("[BDB Writer] Available writer instance found.")
         return db_writer
 
 
