@@ -3,7 +3,7 @@ import threading
 import traceback
 from collections.abc import Callable
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 
 from bleak import BleakClient, BleakScanner
 from bleak.backends.characteristic import BleakGATTCharacteristic
@@ -18,6 +18,7 @@ from .constants import (
     EXPOLATION_RETRY_DELAY_SECONDS,
     MAX_EXPLORATION_TRIES,
     MAX_EXPOLATION_TIMEOUT_SECONDS,
+    PUBLISH_CTRL_MSG_TOPIC,
     RECONNECTION_DELAY_SECONDS,
     SUBSCRIBE_CTRL_MSG_TOPIC,
     SUBSCRIBE_HEARTBEAT_TOPIC,
@@ -306,6 +307,7 @@ class MQTTServiceContext:
     publish_client: Client
     control_cmd_pub: ControlCommandPublisher
     command_status_sub: CommandResponseSubscriber
+    current_msg: Optional[ControlMsg]
 
     def __init__(
         self, broker_host: str, broker_port: int = 1883, client_id: str = "mqtt_client"
@@ -352,6 +354,7 @@ class MQTTServiceContext:
         )
         self.msg_dispatcher.register_handler(HeartbeatMsg, self.heartbeat_sub.handle)
         self.msg_dispatcher.register_handler(StatusMsg, self.command_status_sub.handle)
+        self.current_msg = None
 
     async def start(self) -> None:
         """
@@ -472,7 +475,7 @@ class MQTTServiceContext:
         """
         if not isinstance(message, ControlMsg):
             raise TypeError("Message must be an instance of StatusMsg")
-        await self.control_cmd_pub.add_msg(message, SUBSCRIBE_CTRL_MSG_TOPIC)
+        await self.control_cmd_pub.add_msg(message, PUBLISH_CTRL_MSG_TOPIC)
 
     async def set_board_expect_env(
         self, board_id: int, temperature: float, par: float
@@ -495,6 +498,16 @@ class MQTTServiceContext:
             light_intensity=light_intensity,
         )
         await self.publish_control_command(ctrl_msg)
+        self.current_msg = ctrl_msg
+
+    async def get_current_command(self) -> Optional[ControlMsg]:
+        """
+        Get the current control command being sent to the board.
+
+        Returns:
+            ControlMsg | None: The current control command if available, otherwise None.
+        """
+        return self.current_msg
 
 
 class BLEClientWrapper:

@@ -74,6 +74,7 @@ async def test_ble_service_context_start_stop(monkeypatch):
         fake_batch_writer.stop = AsyncMock()
         fake_batch_writer.fetch = AsyncMock(return_value=[])
         fake_batch_writer.fetch_since = AsyncMock(return_value=[])
+        fake_batch_writer.flush = AsyncMock()  # Ensure flush is an async method
         monkeypatch.setattr(service_mod.BoardDataBatchWriter, "get_instance", lambda: fake_batch_writer)
         fake_msg_dispatcher = MockMessageDispatcher.return_value
         fake_msg_dispatcher.start = AsyncMock()
