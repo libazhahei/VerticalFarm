@@ -118,8 +118,9 @@ class HeartbeatSubscriber(GenericSubscriber):
 
         """
         async with self.lock.writer_lock:
-            if self.alive_devices[msg.board_id][0] == -1:
-                self.alive_devices[msg.board_id] = (msg.seq_no, datetime.now().timestamp())
+            print(f"Heartbeat received for board {msg.board_id} with seq_no {msg.seq_no}")
+            # if self.alive_devices[msg.board_id][0] != -1:
+            self.alive_devices[msg.board_id] = (msg.seq_no, datetime.now().timestamp())
 
     async def is_alive(self, board_id: int) -> bool:
         """Check if a device with the given board ID is alive based on its last heartbeat timestamp.
@@ -139,20 +140,18 @@ class HeartbeatSubscriber(GenericSubscriber):
               for considering a device as alive.
 
         """
-        stoped_devices = -1
+        print(f"Checking if board {board_id} is alive.")
+        print(self.alive_devices)
         if DEVICE_MIN_ID <= board_id <= DEVICE_MAX_ID:
             async with self.lock.reader_lock:
-                device_status = self.alive_devices[board_id]
-            if device_status != -1:
+                deq_no, last_seen = self.alive_devices[board_id]
+            if deq_no != -1:
                 current_time = datetime.now().timestamp()
-                _, last_timestamp = device_status
-                if current_time - last_timestamp < SUBSCRIBE_HEARTBEAT_TIMEOUT_SECONDS:
+                print(f"Current time: {current_time}, Last seen: {last_seen}")
+                if abs(current_time - last_seen) < SUBSCRIBE_HEARTBEAT_TIMEOUT_SECONDS:
                     return True
-                else:
-                    stoped_devices = board_id
-        if stoped_devices != -1:
-            async with self.lock.writer_lock:
-                self.alive_devices[stoped_devices] = (-1, -1)
+        async with self.lock.writer_lock:
+            self.alive_devices[board_id] = (-1, -1)
         return False
 
     async def get_alive_devices(self) -> list[int]:

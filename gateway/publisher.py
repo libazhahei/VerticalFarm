@@ -222,15 +222,17 @@ class ControlCommandPublisher:
         msg_info = self.msgs[message_id]
 
         while msg_info.retries_left > 0:
+            print(await self.is_alive_func(msg_info.payload.board_id))
             if self.is_alive_func is None or not await self.is_alive_func(msg_info.payload.board_id):
                 print(f"[DEVICE NOT ALIVE] Cannot publish message {message_id}, device {msg_info.payload.board_id} is not alive.")
                 self.fail_msg(message_id)
                 break
             published = self.safe_publish(msg_info.payload, msg_info.topic)
             if not published:
-                print(f"[PUBLISH FAILED] Retrying message {message_id}, retries left: {msg_info.retries_left}")
+                print(f"[PUBLISH FAILED] Retrying message {message_id}, retries left: {msg_info.retries_left}. This may indicate publish failure.")
                 self.fail_msg(message_id)
-                return
+                await asyncio.sleep(self.timeout)  # Wait before retrying
+                continue
             try:
                 await asyncio.wait_for(msg_info.stop_event.wait(), timeout=self.timeout)
                 return  # Acknowledged, exit the loop
