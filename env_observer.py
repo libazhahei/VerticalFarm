@@ -132,7 +132,7 @@ async def main() -> None:
             print("Temperature increased after LED heating.")
         else:
             raise ValueError("Temperature did not increase after LED heating.")
-        await data_writer.backup(f"testdata/board_data_backup_light_100.sqlite3")
+        await data_writer.backup(f"testdata/board_data_backup_light_100.json")
         await data_writer.clearAll()
 
         # -------------- Test Cooling ----------------
@@ -155,7 +155,8 @@ async def main() -> None:
             print(f"Setting LED level to {level}%")
             await led_heating(mqtt_service_context, led_level=level)
             current_temp = await get_average_temperature()
-            await data_writer.backup(f"testdata/board_data_backup_light_{level}.sqlite3")
+
+            await data_writer.backup(f"testdata/board_data_backup_light_{level}.json")
             await data_writer.clearAll()
             print(f"Average temperature after LED level {level}%: {current_temp:.2f}°C")
 
@@ -166,7 +167,8 @@ async def main() -> None:
             await heating(mqtt_service_context, timeout=timedelta(minutes=10), target_tmp=init_temp + 2)
             await fan_control(mqtt_service_context, fan_level=level, timeout=timedelta(minutes=3))
             current_temp = await get_average_temperature()
-            await data_writer.backup(f"testdata/board_data_backup_fan_{level}.sqlite3")
+
+            await data_writer.backup(f"testdata/board_data_backup_fan_{level}.json")
             await data_writer.clearAll()
             print(f"Average temperature after fan level {level}%: {current_temp:.2f}°C")
 
