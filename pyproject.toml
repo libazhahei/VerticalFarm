@@ -1,0 +1,141 @@
+# pyproject.toml
+[tool.ruff]
+exclude = [
+    "test_*.py", 
+    "*_test.py", 
+    "**/test_*.py", 
+    "**/*_test.py", 
+    "**/msg.py",
+    "**/llm/*.py",
+    "**/env_observer.py",
+    "**/parser.py",
+    ".venv",
+    "venv",
+    "env",
+    "docs",
+    "build",
+    "dist",
+]
+
+# 2. 启用所有推荐的规则，并添加一些额外的规则来检查类型和命名
+# 推荐的规则集：
+# E: pycodestyle errors
+# W: pycodestyle warnings
+# F: Pyflakes
+# I: isort
+# C: mccabe (complexity)
+# N: pep8-naming
+# D: pydocstyle
+# B: flake8-bugbear
+# A: flake8-builtins
+# PIE: flake8-pie
+# PLC, PLE, PLR, PLW: Pylint (一部分)
+# TCH: type-checking-imports (for type hints)
+# UP: pyupgrade
+# ANN: flake8-annotations (for type hints)
+# ERA: eradicate (commented out code)
+# S: bandit (security)
+# RUF: Ruff specific rules
+
+# 启用以下规则集：
+lint.select = [
+    "E", "W", "F", "I", "C", "N", "D", "B", "A", "PIE",
+    "PLC", "PLE", "PLR", "PLW", # Pylint 的一些规则
+    "UP", # 自动升级代码到更现代的Python语法
+    "ANN", # 强制类型注解 
+    # "ERA", # 检查注释掉的代码 
+    "S", # 基础安全检查 
+    "RUF", # Ruff 自己的规则
+]
+
+# 忽略一些常见或你认为不必要的规则
+lint.ignore = [
+    "D100", # Missing docstring in public module
+    "D104", # Missing docstring in public package
+    "D105", # Missing docstring in public method (如果不需要所有方法都有)
+    "D106", # Missing docstring in public nested class
+    "D107", # Missing docstring in __init__
+    "D205", # 1 blank line required between summary line and description
+    "D212", # Multi-line docstring summary should start at the first line
+    "D400", # First line should end with a period
+    "D401", # First line should be in imperative mood 
+    "D203", # 1 blank line required before class docstring 
+    "D213", # Multi-line docstring summary should start on the same line as the opening quotes 
+    "D413", # Missing blank line after last section
+    "E501", # Line too long (让 Black 或 Ruff 格式化工具处理)
+    "W291", # Trailing whitespace 
+    "RUF006", # Store a reference to the return value
+    "B904", # Within an `except` clause, raise exceptions with `raise ... from err`
+    "ANN204", # Missing return type annotation for special method `__init__`
+    "ANN401", # Dynamically typed expressions are disallowed 
+    "C901", # Function is too complex 
+    "RUF012", # Unused variable
+    "PLW0603", 
+    "PLW0604", 
+    "S311", # Standard pseudo-random generators are not suitable for cryptographic purposes
+    "A001", # Variable `id` is shadowing a Python builtin
+    # 如果你不想强制所有函数都带类型注解，可以忽略 ANN001, ANN201, ANN202 等
+    # "ANN001", # Missing type annotation for function argument
+    # "ANN201", # Missing return type annotation for public function
+    # "ANN202", # Missing return type annotation for private function
+]
+
+# 行长度限制 (与 Black 保持一致)
+line-length = 120
+
+# 目标 Python 版本
+target-version = "py313" # 或者你的项目实际使用的版本，如 "py39", "py310"
+
+# 3. 命名约定检查 (PEP8-Naming - N 规则集)
+# Ruff 的 N 规则集默认就包含了这些检查。
+# N801: Class name should be CamelCase
+# N802: Function name should be lowercase_with_underscores
+# N803: Argument name should be lowercase_with_underscores
+# N806: Variable in function should be lowercase_with_underscores
+# N813: Parameter name should be lowercase_with_underscores
+# N814: Class method should have cls as first argument
+# N815: Instance method should have self as first argument
+# N816: Attribute name should be lowercase_with_underscores
+
+# 如果你需要自定义命名规则，可以在这里配置，但通常默认的 N 规则已经足够
+# 例如，如果你想允许某些缩写，可以配置 `classmethod-decorators` 等
+
+[tool.ruff.lint.per-file-ignores]
+# 如果你想对特定文件或模式应用不同的规则，可以在这里配置
+# "src/my_module/utils.py" = ["D"] # 忽略 src/my_module/utils.py 中的所有文档字符串规则
+
+[tool.ruff.lint.isort]
+# isort 规则，用于导入排序
+known-first-party = ["."] # 替换为你的项目顶层包名
+combine-as-imports = true
+force-single-line = false
+
+# 4. 类型检查 (通过 ANN 规则集和 TCH 规则集)
+# Ruff 会检查类型注解的语法和一些常见问题 (如循环导入)。
+# 对于更深度的静态类型检查 (如检查类型是否匹配)，你需要 MyPy。
+# Ruff 可以与 MyPy 结合使用。
+
+# 配置 flake8-annotations (ANN) 规则
+[tool.ruff.lint.flake8-annotations]
+# allow-untyped-decorators = true # 允许装饰器不带类型
+# allow-untyped-special-args = true # 允许特殊参数 (如 *args, **kwargs) 不带类型
+# ignore-fully-untyped = false # 如果设置为 true，则会忽略完全未注解的函数
+suppress-none-returning = false # 对于返回 None 的函数也要求显式注解
+
+# 5. 可选：集成 MyPy 进行更严格的类型检查
+# 虽然 Ruff 提供了一些类型相关的 linting，但 MyPy 是专门的静态类型检查器。
+# 你可以在 CI/CD 中独立运行 MyPy，或者在 Ruff 之后运行。
+
+# [tool.mypy]
+# python_version = "3.13"
+# plugins = ["pydantic.mypy"] # 如果你使用 Pydantic
+# # 严格模式，推荐在项目稳定后启用
+# strict = true
+# # 或者更细粒度地控制
+# disallow_untyped_defs = true
+# no_implicit_optional = true
+# warn_return_any = true
+# warn_unused_ignores = true
+# show_error_codes = true
+# # 忽略测试文件 (与 Ruff 类似)
+# exclude = "tests_.*\\.py$" # MyPy 的 exclude 使用 regex

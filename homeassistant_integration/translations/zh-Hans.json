@@ -1,0 +1,48 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "data": {
+          "mqtt_broker": "MQTT代理",
+          "mqtt_port": "MQTT端口",
+          "mqtt_username": "MQTT用户名（可选）",
+          "mqtt_password": "MQTT密码（可选）",
+          "device_ids": "设备ID"
+        },
+        "description": "输入垂直农场系统的MQTT连接详情和设备ID用于监控。",
+        "title": "垂直农场MQTT监控配置"
+      }
+    },
+    "error": {
+      "cannot_connect": "无法连接到MQTT代理",
+      "invalid_device_id": "无效的设备ID",
+      "no_devices": "未指定设备",
+      "unknown": "未知错误"
+    },
+    "abort": {
+      "already_configured": "设备已配置"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "vertical_farm_mqtt_temperature": {
+        "name": "温度"
+      },
+      "vertical_farm_mqtt_humidity": {
+        "name": "湿度"
+      },
+      "vertical_farm_mqtt_light_intensity": {
+        "name": "光照强度"
+      },
+      "vertical_farm_mqtt_fan_speed": {
+        "name": "风扇速度"
+      },
+      "vertical_farm_mqtt_led_brightness": {
+        "name": "LED亮度"
+      },
+      "vertical_farm_mqtt_status": {
+        "name": "状态"
+      }
+    }
+  }
+} 
