@@ -1,0 +1,14 @@
+{
+  "domain": "vertical_farm_mqtt",
+  "name": "Vertical Farm MQTT Monitor",
+  "config_flow": true,
+  "documentation": "https://github.com/your-repo/vertical-farm-homeassistant",
+  "requirements": ["paho-mqtt>=1.6.0"],
+  "ssdp": [],
+  "zeroconf": [],
+  "homekit": {},
+  "dependencies": ["mqtt"],
+  "codeowners": ["@your-username"],
+  "iot_class": "local_push",
+  "version": "1.0.0"
+} 

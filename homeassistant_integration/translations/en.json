@@ -1,0 +1,48 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "data": {
+          "mqtt_broker": "MQTT Broker",
+          "mqtt_port": "MQTT Port",
+          "mqtt_username": "MQTT Username (optional)",
+          "mqtt_password": "MQTT Password (optional)",
+          "device_ids": "Device IDs"
+        },
+        "description": "Enter the MQTT connection details and device IDs for your Vertical Farm system monitoring.",
+        "title": "Vertical Farm MQTT Monitor Configuration"
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to MQTT broker",
+      "invalid_device_id": "Invalid device ID",
+      "no_devices": "No devices specified",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "Device is already configured"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "vertical_farm_mqtt_temperature": {
+        "name": "Temperature"
+      },
+      "vertical_farm_mqtt_humidity": {
+        "name": "Humidity"
+      },
+      "vertical_farm_mqtt_light_intensity": {
+        "name": "Light Intensity"
+      },
+      "vertical_farm_mqtt_fan_speed": {
+        "name": "Fan Speed"
+      },
+      "vertical_farm_mqtt_led_brightness": {
+        "name": "LED Brightness"
+      },
+      "vertical_farm_mqtt_status": {
+        "name": "Status"
+      }
+    }
+  }
+} 
