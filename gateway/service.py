@@ -3,7 +3,7 @@ import threading
 import traceback
 from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 from bleak import BleakClient, BleakScanner
 from bleak.backends.characteristic import BleakGATTCharacteristic
@@ -36,6 +36,7 @@ from .msg import (
 from .publisher import ControlCommandPublisher
 from .subscriber import (
     CommandResponseSubscriber,
+    CommonDataRetriver,
     HeartbeatSubscriber,
     MessageDispatcher,
     SensorDataSubscriber,
@@ -863,6 +864,7 @@ class BLEServiceContext:
     is_running: bool
     _asyncio_loop: asyncio.AbstractEventLoop | None
     batch_writer: BoardDataBatchWriter
+    device_data_retrivers: List[CommonDataRetriver]
 
     def __init__(self, device_id_list: list[int]) -> None:
         self.msg_dispatcher = MessageDispatcher()
@@ -871,7 +873,13 @@ class BLEServiceContext:
         self.ble_client = BLEClientWrapper(
             device_id_lists=device_id_list, dispatcher=self.msg_dispatcher
         )
+        self.device_data_retrivers = [
+            CommonDataRetriver.get_instance(board_id=device_id, time_window=15)
+            for device_id in device_id_list
+        ]
         self.msg_dispatcher.register_handler(SensorDataMsg, self.ble_sub.handle)
+        for retriver in self.device_data_retrivers:
+            self.msg_dispatcher.register_handler(SensorDataMsg, retriver.handle)
         for device_id in device_id_list:
             self.ble_client.register_notification_handler(
                 device_id, self.ble_sub.parse_bytes

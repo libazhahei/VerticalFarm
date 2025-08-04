@@ -1,10 +1,13 @@
 import asyncio
 from abc import ABC, abstractmethod
+from collections import deque
 from collections.abc import Callable
-from datetime import datetime
+from datetime import date, datetime, timedelta
+from typing import Deque, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from aiorwlock import RWLock
+from numpy import average
 
 from data.tables import BoardData, BoardDataBatchWriter
 
@@ -251,6 +254,137 @@ class SensorDataSubscriber(BLESubscriber):
         """Parses a byte array into a BLEMessageType object."""
         internal_msg = SensorDataMsg.from_byte_array(msg_bytes)
         return internal_msg
+    
+class CommonDataRetriver(BLESubscriber):
+    """A subscriber class responsible for retrieving common data from BLE messages.
+
+    This class is designed to handle BLE messages that contain common data such as
+    moving average temperature, light intensity, and humidity, and also moving average 
+    fan speed. It provides methods to handle these messages and parse them from byte arrays.
+    """
+    time_window: int
+    num_samples: int
+    sum_temperature: float
+    sum_light_intensity: float
+    sum_humidity: float
+    sum_fan_speed: float
+    data_queue: Deque[SensorDataMsg]
+    timeout: timedelta
+    lock: RWLock
+
+    latest_temperature: float = 0.0
+    latest_light_intensity: float = 0.0
+    latest_humidity: float = 0.0
+    latest_fan_speed: float = 0.0
+    latest_timestamp: Optional[datetime] = None
+    latest_led: int = 0
+
+    retrivers: Dict[int, "CommonDataRetriver"] = {}
+
+    def __init__(self, time_window: int, timeout: timedelta, board_id: int) -> None:
+        """Initializes the CommonDataRetriver with a time window."""
+        self.time_window = time_window
+        self.timeout = timeout
+        self.num_samples = 0
+        self.sum_temperature = 0.0
+        self.sum_light_intensity = 0.0
+        self.sum_humidity = 0.0
+        self.sum_fan_speed = 0.0
+        self.data_queue = deque(maxlen=time_window)
+        self.board_id = board_id
+        self.lock = RWLock()
+        
+
+    @classmethod
+    def get_instance(cls, board_id: int, time_window: int = 30, timeout: timedelta = timedelta(seconds=20), ) -> "CommonDataRetriver":
+        """Returns a singleton instance of CommonDataRetriver."""
+        if cls.retrivers is None:
+            cls.retrivers = {}
+        if board_id not in cls.retrivers:
+            cls.retrivers[board_id] = CommonDataRetriver(time_window, timeout, board_id)
+        return cls.retrivers[board_id]
+
+    async def handle(self, msg: SensorDataMsg) -> None:
+        """Handles a BLE message by updating the moving averages and time queue."""
+        if not isinstance(msg, SensorDataMsg):
+            raise TypeError("Message must be an instance of SensorDataMsg")
+        if msg.board_id == self.board_id:
+            await self.update_averages(msg)
+            self.latest_temperature = msg.temperature
+            self.latest_light_intensity = msg.light_intensity
+            self.latest_humidity = msg.humidity
+            self.latest_fan_speed = msg.fans_real
+            self.latest_timestamp = datetime.now(tz=ZoneInfo(TIMEZONE))
+            self.latest_led = msg.led_abs
+            
+
+    def parse_bytes(self, msg_bytes: bytearray) -> SensorDataMsg:
+        """Parses a byte array into a SensorDataMsg object."""
+        internal_msg = SensorDataMsg.from_byte_array(msg_bytes)
+        return internal_msg
+    
+    async def update_averages(self, msg: SensorDataMsg) -> None:
+        """Updates the moving averages based on the received sensor data message.
+
+        Args:
+            msg (SensorDataMsg): The sensor data message containing temperature, light intensity, 
+                                 humidity, and fan speed.
+
+        This method maintains a moving average of the temperature, light intensity, humidity, 
+        and fan speed over a specified time window. It updates the averages and manages the 
+        time queue to ensure that only the most recent samples within the time window are considered.
+        """
+        # Use double pointer to calculate moving average.
+        # remove old samples that are outside the time window
+        current_time = datetime.now(tz=ZoneInfo(TIMEZONE)).timestamp()
+        async with self.lock.writer_lock:
+            while self.data_queue and (current_time - self.data_queue[0].timestamp) > self.timeout.total_seconds():
+                old_msg = self.data_queue.popleft()
+                self.num_samples -= 1
+                self.sum_temperature -= old_msg.temperature
+                self.sum_light_intensity -= old_msg.light_intensity
+                self.sum_humidity -= old_msg.humidity
+                self.sum_fan_speed -= old_msg.fans_real
+                if self.num_samples == 0:
+                    self.sum_temperature = 0.0
+                    self.sum_light_intensity = 0.0
+                    self.sum_humidity = 0.0
+                    self.sum_fan_speed = 0.0
+                    return
+            # add new sample
+            self.data_queue.append(msg)
+            self.num_samples = len(self.data_queue)
+            # update averages
+            self.sum_temperature += msg.temperature
+            self.sum_light_intensity += msg.light_intensity
+            self.sum_humidity += msg.humidity
+            self.sum_fan_speed += msg.fans_real
+
+    async def get_moving_average(self) -> dict[str, float]:
+        """Calculates and returns the moving averages of temperature, light intensity, humidity, and fan speed.
+
+        Returns:
+            dict[str, float]: A dictionary containing the moving averages of temperature, light intensity,
+                              humidity, and fan speed. If no samples are available, all values will be 0.0.
+        """
+        if self.num_samples == 0:
+            return {
+                "temperature": 0.0,
+                "light_intensity": 0.0,
+                "humidity": 0.0,
+                "fans_real": 0.0,
+                "num_samples": 0
+            }
+        async with self.lock.reader_lock:
+            num_sample = self.num_samples
+            return {
+                "temperature": self.sum_temperature / num_sample,
+                "light_intensity": self.sum_light_intensity / num_sample,
+                "humidity": self.sum_humidity / num_sample,
+                "fans_real": self.sum_fan_speed / num_sample,
+                "num_samples": num_sample
+            }
+
 
 class MessageDispatcher:
     """A class responsible for dispatching messages to registered handlers asynchronously.
