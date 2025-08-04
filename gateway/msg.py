@@ -65,17 +65,30 @@ class BLEMessageType(MessageType):
 
 # Define a enum for mode: which is abs or relative
 class Mode(int, Enum):
-    ABSOLUTE = 0
-    RELATIVE = 1
+    ABSOLUTE = 1
+    RELATIVE = 0
 
 class Status(int, Enum):
     OK = 0
     ERROR = 1
-    WARNING = 2
+    WARNING = 3
 
 @dataclass
 class ControlMsg(MQTTMessageType):
     """Control message for the fans and LED.
+    This message is used to control the fans and LED on the board.
+    It contains the board ID, mode (absolute or relative), fan speed, LED brightness,
+    temperature, and light intensity.
+    Attributes:
+        message_id (int): Unique identifier for the message. It will be generated automatically.
+        board_id (int): ID of the board to control (0-6).
+        mode (int): Mode of operation, either ABSOLUTE or RELATIVE. ABSOLUTE mode means the fan and LED values are set directly, 
+                        RELATIVE mode means expected temperature and light itensity values.
+        fan (int): Fan speed (0-255) in ABSOLUTE mode 
+        led (int): LED brightness (0-255) in ABSOLUTE mode.
+        temperature (float): Temperature value in degrees Celsius (0-100).
+        light_intensity (float): Light intensity value in lux (0 - 65535).
+        timestamp (float): Timestamp of the message creation in milliseconds since epoch. It will be generated automatically.
     """
 
     message_id: int
@@ -241,19 +254,30 @@ class HeartbeatMsg(MQTTMessageType):
     def get_message_id(self) -> int:
         return self.seq_no
 
-class SensorStatus(int, Enum):
-    IDLE = 0
-    RUNNING = 1
-    ERROR = 2
-
 @dataclass 
 class SensorDataMsg(BLEMessageType):
+    """
+    Sensor data message from the board.
+    This message contains sensor data from the board, including temperature, light intensity,
+    fan speed, humidity, status, and absolute values for fans and LED.
+    Attributes:
+        board_id (int): ID of the board (0-6).
+        temperature (float): Temperature value in degrees Celsius (0-100).
+        light_intensity (int): Light intensity value in lux (0-65535).
+        fans_real (int): Real fan speed value (0- appx. 10k) in pwm.
+        humidity (float): Humidity value in percentage (0-100).
+        status (SensorStatus): Status of the sensor (OK, WARNIG, ERROR).
+        fans_abs (int): Absolute value for fans (0-255).
+        led_abs (int): Absolute value for LED (0-255).
+        timestamp (float): Timestamp of the message creation in milliseconds since epoch. It will be generated automatically.
+    """
+
     board_id: int
     temperature: float 
     light_intensity: int 
     fans_real: int 
     humidity: float
-    status: SensorStatus 
+    status: Status 
     fans_abs: int  
     led_abs: int
     timestamp: float
@@ -277,22 +301,17 @@ class SensorDataMsg(BLEMessageType):
         self.timestamp = int(datetime.now().timestamp())
 
     def to_byte_array(self) -> bytearray:
-        byte_array = bytearray(20)
+        byte_array = bytearray(12)
         byte_array[0] = self.board_id
-        temp = int(self.temperature * 100)
-        byte_array[1] = temp & 0xFF
-        byte_array[2] = (temp >> 8) & 0xFF
-        byte_array[3] = self.light_intensity & 0xFF
-        byte_array[4] = (self.light_intensity >> 8) & 0xFF
-        byte_array[5] = self.fans_real & 0xFF
-        byte_array[6] = (self.fans_real >> 8) & 0xFF
-        byte_array[7] = int(self.humidity * 100) & 0xFF
-        byte_array[8] = (int(self.humidity * 100) >> 8) & 0xFF
+        temp_raw = int(self.temperature * 100)
+        byte_array[1:3] = struct.pack('>H', temp_raw)
+        byte_array[3:5] = struct.pack('>H', self.light_intensity)
+        byte_array[5:7] = struct.pack('>H', self.fans_real)
+        humidity_raw = int(self.humidity * 100)
+        byte_array[7:9] = struct.pack('>H', humidity_raw)
         byte_array[9] = self.status.value
         byte_array[10] = self.fans_abs
         byte_array[11] = self.led_abs
-        for i in range(12, 20):
-            byte_array[i] = 0
         return byte_array
 
     @classmethod
@@ -313,7 +332,7 @@ class SensorDataMsg(BLEMessageType):
             light_intensity=light,
             fans_real=fan,
             humidity=humidity_raw / 100.0,
-            status=status,
+            status=Status(status),
             fans_abs=fan_pwm,
             led_abs=light_pwm,
             timestamp=datetime.now().timestamp()

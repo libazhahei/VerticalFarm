@@ -20,12 +20,12 @@ DEVICE_MAX_ID = 6
 # MQTT
 SUBSCRIBE_HEARTBEAT_TIMEOUT_SECONDS = 10
 SUBSCRIBE_HEARTBEAT_TOPIC = "cropwaifu/heartbeat"
-SUBSCRIBE_CTRL_MSG_TOPIC = "cropwaifu/control"
+SUBSCRIBE_CTRL_MSG_TOPIC = "cropwaifu/respond"
 
 PUBLISH_RESENT_MAX_RETRIES = 3
 PUBLISH_TIMEOUT_SECONDS = 5
 PUBLISH_ERR_MAX_RETRIES = 3
-PUBLISH_CTRL_MSG_TPPIC = "cropwaifu/respond"
+PUBLISH_CTRL_MSG_TOPIC = "cropwaifu/control"
 PUBLISH_CTRL_QOS = 0
 
 # BLE
@@ -43,21 +43,21 @@ TIMEZONE = "Australia/Sydney"  # Default timezone for the application
 
 def get_service_uuid(board_id: int) -> str:
     """Generates a service UUID based on the board ID."""
-    print(f'Board ID = {board_id}')
+    # print(f'Board ID = {board_id}')
     if not (DEVICE_MIN_ID <= board_id <= DEVICE_MAX_ID):
         raise ValueError(f"Board ID must be between {DEVICE_MIN_ID} and {DEVICE_MAX_ID}, got {board_id}.")
     return f"{SERVICE_UUID_PREFIX}{board_id:012x}"
 
 def get_characteristic_uuid(board_id: int) -> str:
     """Generates a characteristic UUID based on the board ID."""
-    print(f'Board ID = {board_id}')
+    # print(f'Board ID = {board_id}')
     if not (DEVICE_MIN_ID <= board_id <= DEVICE_MAX_ID):
         raise ValueError(f"Board ID must be between {DEVICE_MIN_ID} and {DEVICE_MAX_ID}, got {board_id}.")
     return f"{CHARACTERISTIC_UUID_PREFIX}{board_id:012x}"
 
 def get_device_name(board_id: int) -> str:
     """Generates a device name based on the board ID."""
-    print(f'Board ID = {board_id}')
+    # print(f'Board ID = {board_id}')
     if not (DEVICE_MIN_ID <= board_id <= DEVICE_MAX_ID):
         raise ValueError(f"Board ID must be between {DEVICE_MIN_ID} and {DEVICE_MAX_ID}, got {board_id}.")
     return f"{DEVICE_PREFIX}{board_id}"
