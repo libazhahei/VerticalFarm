@@ -1,47 +1,209 @@
-{"cases": [{"Case_ID": "Case_1_HighTemp_HighHum",
-   "Condition_IF": "Temperature > 21°C AND Humidity > 70% (Lights ON)",
-   "Diagnosis_Tradeoff_Analysis": "Elevated temperature and high humidity increase heat stress and disease risk; increasing ventilation reduces humidity and leaf surface temperature but drives higher transpiration and energy use; dimming lights reduces heat load but sacrifices photosynthesis.",
-   "Primary_Control_Priority": "Prevent heat/cold damage",
-   "Prioritized_Action_Chain": ["Set fan to 100% (3400 RPM)",
-    "Dim LED to 8,000 Lux"],
-   "Risk_level": "High",
-   "15 min_Goal_and_Tradeoff": "Achieve Temperature ≤ 21°C and Humidity ≤ 70%; DLI accumulation is temporarily reduced to ~0.5 mol/m²"},
-  {"Case_ID": "Case_2_HighTemp_LowHum",
-   "Condition_IF": "Temperature > 21°C AND Humidity < 50% (Lights ON)",
-   "Diagnosis_Tradeoff_Analysis": "High temperature and low humidity drive excessive transpiration and dehydration risk; reducing fan speed conserves moisture but may allow temperature rise; dimming lights lowers heat load but reduces photosynthesis.",
-   "Primary_Control_Priority": "Prevent heat/cold damage",
-   "Prioritized_Action_Chain": ["Set fan to 50% (1700 RPM)",
-    "Dim LED to 10,000 Lux"],
-   "Risk_level": "High",
-   "15 min_Goal_and_Tradeoff": "Achieve Temperature ≤ 21°C and Humidity ≥ 50%; photosynthesis rate is reduced by ~15%"},
-  {"Case_ID": "Case_3_IdealTemp_HighHum",
-   "Condition_IF": "Temperature 15–21°C AND Humidity > 70% (Lights ON)",
-   "Diagnosis_Tradeoff_Analysis": "Optimal temperature but excessive humidity increases disease risk and reduces gas exchange; max ventilation lowers RH but increases energy use and leaf water loss; maintaining light maximizes photosynthesis.",
-   "Primary_Control_Priority": "Avoid disease risk",
-   "Risk_level": "High",
-   "Prioritized_Action_Chain": ["Set fan to 100% (3400 RPM)",
-    "Maintain LED at 15,000 Lux"],
-   "15 min_Goal_and_Tradeoff": "Achieve Humidity ≤ 70% while keeping Temperature 15–21°C; minor DLI reduction due to higher ventilation"},
-  {"Case_ID": "Case_4_LowTemp_HighHum",
-   "Condition_IF": "Temperature < 15°C AND Humidity > 70% (Lights ON)",
-   "Diagnosis_Tradeoff_Analysis": "Low temperature slows growth and high humidity promotes condensation and pathogens; reducing fan conserves heat but may trap moisture; increasing light raises temp but risks localized heat stress.",
-   "Primary_Control_Priority": "Prevent heat/cold damage",
-   "Risk_level": "High",
-   "Prioritized_Action_Chain": ["Set fan to 20% (680 RPM)",
-    "Increase LED to 20,000 Lux"],
-   "15 min_Goal_and_Tradeoff": "Achieve Temperature ≥ 15°C and Humidity ≤ 70%; slight risk of higher leaf-surface temperature spots"},
-  {"Case_ID": "Case_5_All_Ideal",
-   "Condition_IF": "Temperature 15–21°C AND Humidity 50–70% AND LED 15,000–20,000 Lux (Lights ON)",
-   "Diagnosis_Tradeoff_Analysis": "All parameters optimal; opportunity to maximize photosynthesis with balanced energy use; excessive fan or light would waste energy without benefit.",
-   "Primary_Control_Priority": "Maximize photosynthesis",
-   "Risk_level": "High",
-   "Prioritized_Action_Chain": ["Set LED to 20,000 Lux",
-    "Set fan to 50% (1700 RPM)"],
-   "15 min_Goal_and_Tradeoff": "Maintain Temperature 15–21°C, Humidity 50–70%, DLI accumulation ~1.5 mol/m²; energy use is moderated"},
-  {"Case_ID": "Case_6_NightMode_ColdHighHum",
-   "Condition_IF": "Lights OFF AND Temperature < 10°C AND Humidity > 70%",
-   "Diagnosis_Tradeoff_Analysis": "Cold and high humidity at night risk condensation and pathogen growth; increased ventilation reduces humidity but further cools chamber; fan use raises energy consumption without photosynthesis benefit.",
-   "Primary_Control_Priority": "Prevent heat/cold damage",
-   "Prioritized_Action_Chain": ["Set fan to 20% (680 RPM)"],
-   "Risk_level": "High",
-   "15 min_Goal_and_Tradeoff": "Achieve Temperature ≥ 10°C and Humidity ≤ 70%; energy consumption increases without DLI gain"}]}
+{
+  "strategy_playbook": [
+    {
+      "case_id": "CASE_01_HEAT_HUMIDITY_STRESS_DAY",
+      "case_description": "Critical Heat and High Humidity Stress during Lights ON Period",
+      "case_quantitative_description": "T_internal = 25°C, RH_internal = 80%, Photoperiod = Lights_ON",
+      "risk_level": "High",
+      "trigger_condition": {
+        "description": "Internal temperature exceeds upper ideal and humidity is above ideal during lights on.",
+        "logic": "T_internal > 21 AND RH_internal > 70 AND Photoperiod == 'Lights_ON'"
+      },
+      "diagnosis_and_strategy": "Plants at risk of heat stress and fungal infection. Priority is rapid cooling and dehumidification, accepting temporary PPFD reduction.",
+      "control_sequence": [
+        {
+          "step": 1,
+          "objective": "Rapidly reduce chamber temperature and humidity",
+          "actions": {
+            "fan_setting": "100%",
+            "led_setting": "Dim to 50% intensity"
+          },
+          "justification": "Maximize fan speed for cooling and moisture removal; dim LEDs to cut heat load.",
+          "estimated_duration_minutes": 5,
+          "exit_condition": "T_internal < 22 OR RH_internal < 75 OR after 5 minutes"
+        },
+        {
+          "step": 2,
+          "objective": "Stabilize environment and resume photosynthesis",
+          "actions": {
+            "fan_setting": "75%",
+            "led_setting": "Increase to 60% intensity"
+          },
+          "justification": "Maintain strong airflow for humidity control while restoring light for DLI.",
+          "estimated_duration_minutes": 10,
+          "exit_condition": "End of 15-minute cycle"
+        }
+      ],
+      "overall_15min_goal": "Goal: T_internal ≤21°C, RH_internal ≤70%. Trade-off: DLI ~20% below target for this interval."
+    },
+    {
+      "case_id": "CASE_02_HEAT_LOW_HUMIDITY_DAY",
+      "case_description": "High Temperature and Low Humidity during Lights ON",
+      "case_quantitative_description": "T_internal = 24°C, RH_internal = 45%, Photoperiod = Lights_ON",
+      "risk_level": "Medium",
+      "trigger_condition": {
+        "description": "Temperature high and humidity below lower ideal during lights on.",
+        "logic": "T_internal > 21 AND RH_internal < 50 AND Photoperiod == 'Lights_ON'"
+      },
+      "diagnosis_and_strategy": "Risk of heat stress and dehydration. Strategy is cooling to ideal temp, then moderate fan to avoid further humidity loss.",
+      "control_sequence": [
+        {
+          "step": 1,
+          "objective": "Rapidly cool chamber to ideal temperature",
+          "actions": {
+            "fan_setting": "100%",
+            "led_setting": "Dim to 30% intensity"
+          },
+          "justification": "Maximize cooling effect; dim LEDs to reduce heat input.",
+          "estimated_duration_minutes": 5,
+          "exit_condition": "T_internal < 20 OR after 5 minutes"
+        },
+        {
+          "step": 2,
+          "objective": "Maintain temperature while limiting humidity loss",
+          "actions": {
+            "fan_setting": "50%",
+            "led_setting": "Increase to 70% intensity"
+          },
+          "justification": "Lower fan to reduce desiccation; restore light for photosynthesis.",
+          "estimated_duration_minutes": 10,
+          "exit_condition": "End of 15-minute cycle"
+        }
+      ],
+      "overall_15min_goal": "Goal: T_internal within [15–21°C], RH_internal ≥45%. Trade-off: Humidity may remain at lower ideal boundary."
+    },
+    {
+      "case_id": "CASE_03_OPT_TEMP_HIGH_HUMIDITY_DAY",
+      "case_description": "Optimal Temperature but High Humidity during Lights ON",
+      "case_quantitative_description": "T_internal = 18°C, RH_internal = 75%, Photoperiod = Lights_ON",
+      "risk_level": "Medium",
+      "trigger_condition": {
+        "description": "Temperature is within ideal but humidity exceeds ideal during lights on.",
+        "logic": "T_internal >= 15 AND T_internal <= 21 AND RH_internal > 70 AND Photoperiod == 'Lights_ON'"
+      },
+      "diagnosis_and_strategy": "Risk of mold. Aim to reduce humidity without dropping temperature below ideal. Use fan first, LED secondary.",
+      "control_sequence": [
+        {
+          "step": 1,
+          "objective": "Reduce humidity while monitoring temperature",
+          "actions": {
+            "fan_setting": "80%",
+            "led_setting": "Maintain at 60% intensity"
+          },
+          "justification": "High airflow removes moisture; maintain LED for PPFD.",
+          "estimated_duration_minutes": 7,
+          "exit_condition": "RH_internal < 70 OR after 7 minutes"
+        },
+        {
+          "step": 2,
+          "objective": "Prevent overcooling and re-balance light",
+          "actions": {
+            "fan_setting": "60%",
+            "led_setting": "Increase to 80% intensity if T_internal < 15°C"
+          },
+          "justification": "Moderate airflow to sustain humidity control; boost LEDs if temp falls below ideal.",
+          "estimated_duration_minutes": 8,
+          "exit_condition": "End of 15-minute cycle"
+        }
+      ],
+      "overall_15min_goal": "Goal: RH_internal ≤70%, T_internal ≥15°C. Trade-off: Slight reduction in DLI if LED intensity lowered momentarily."
+    },
+    {
+      "case_id": "CASE_04_COLD_HIGH_HUMIDITY_NIGHT",
+      "case_description": "Low Temperature and High Humidity during Lights OFF",
+      "case_quantitative_description": "T_internal = 8°C, RH_internal = 80%, Photoperiod = Lights_OFF",
+      "risk_level": "High",
+      "trigger_condition": {
+        "description": "Night period with temperature below ideal night-range and humidity above ideal.",
+        "logic": "T_internal < 10 AND RH_internal > 70 AND Photoperiod == 'Lights_OFF'"
+      },
+      "diagnosis_and_strategy": "Risk of chilling stress and condensation. Use fan to draw warmer external air and dehumidify.",
+      "control_sequence": [
+        {
+          "step": 1,
+          "objective": "Raise temperature toward night ideal and reduce humidity",
+          "actions": {
+            "fan_setting": "50%",
+            "led_setting": "OFF"
+          },
+          "justification": "Moderate ventilation brings in warmer ambient air and lowers humidity; lights remain off to respect dark cycle.",
+          "estimated_duration_minutes": 7,
+          "exit_condition": "T_internal > 10 OR RH_internal < 75 OR after 7 minutes"
+        },
+        {
+          "step": 2,
+          "objective": "Maximize dehumidification and warming if needed",
+          "actions": {
+            "fan_setting": "100%",
+            "led_setting": "OFF"
+          },
+          "justification": "Full fan capacity to achieve temperature and humidity targets while maintaining dark period.",
+          "estimated_duration_minutes": 8,
+          "exit_condition": "End of 15-minute cycle"
+        }
+      ],
+      "overall_15min_goal": "Goal: T_internal ≥10°C, RH_internal ≤70%. Trade-off: Possible overcooling if external drops, monitor next cycle."
+    },
+    {
+      "case_id": "CASE_05_POST_WATERING_SPIKE_DAY",
+      "case_description": "Post-Watering Sudden Humidity Spike during Lights ON",
+      "case_quantitative_description": "T_internal = 16°C, RH_internal spikes to 85%, Photoperiod = Lights_ON",
+      "risk_level": "High",
+      "trigger_condition": {
+        "description": "Rapid increase in humidity above critical threshold after watering during lights on.",
+        "logic": "RH_internal > 80 AND RecentEvent == 'Watering' AND Photoperiod == 'Lights_ON'"
+      },
+      "diagnosis_and_strategy": "High mold risk. Immediate dehumidification while maintaining photosynthesis if possible.",
+      "control_sequence": [
+        {
+          "step": 1,
+          "objective": "Rapid dehumidification",
+          "actions": {
+            "fan_setting": "100%",
+            "led_setting": "Dim to 50% intensity"
+          },
+          "justification": "Maximize airflow to remove moisture; dim lights to reduce heat and condensation potential.",
+          "estimated_duration_minutes": 6,
+          "exit_condition": "RH_internal < 75 OR after 6 minutes"
+        },
+        {
+          "step": 2,
+          "objective": "Restore optimal growth conditions",
+          "actions": {
+            "fan_setting": "75%",
+            "led_setting": "Increase to 70% intensity"
+          },
+          "justification": "Balance humidity control with PPFD recovery.",
+          "estimated_duration_minutes": 9,
+          "exit_condition": "End of 15-minute cycle"
+        }
+      ],
+      "overall_15min_goal": "Goal: RH_internal ≤70%, T_internal within [15–21°C]. Trade-off: Slight temporary reduction in DLI."
+    },
+    {
+      "case_id": "CASE_06_MAINTENANCE_OPTIMAL_DAY",
+      "case_description": "Optimal Conditions Maintenance during Lights ON",
+      "case_quantitative_description": "T_internal = 18°C, RH_internal = 60%, Photoperiod = Lights_ON",
+      "risk_level": "Low",
+      "trigger_condition": {
+        "description": "All parameters within ideal ranges during lights on.",
+        "logic": "T_internal >= 15 AND T_internal <= 21 AND RH_internal >= 50 AND RH_internal <= 70 AND Photoperiod == 'Lights_ON'"
+      },
+      "diagnosis_and_strategy": "Environment optimal; maintain conditions and accumulate DLI with minimal interventions.",
+      "control_sequence": [
+        {
+          "step": 1,
+          "objective": "Maintain ideal environment and DLI accumulation",
+          "actions": {
+            "fan_setting": "30%",
+            "led_setting": "Set to 60% intensity"
+          },
+          "justification": "Low airflow for circulation; LED at target PPFD (~200 µmol/m²/s) for DLI.",
+          "estimated_duration_minutes": 15,
+          "exit_condition": "End of 15-minute cycle"
+        }
+      ],
+      "overall_15min_goal": "Goal: Sustain T_internal within [15–21°C], RH_internal within [50–70%], accumulate DLI ~0.9 mol/m² in 15 min."
+    }
+  ]
+}

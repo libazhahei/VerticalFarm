@@ -64,17 +64,34 @@ class OverallTarget(BaseModel):
         return values
     
 # P3 Output Model
+class TriggerCondition(BaseModel):
+    description: str
+    logic: str
+
+class ControlAction(BaseModel):
+    fan_setting: str
+    led_setting: str
+
+class ControlStep(BaseModel):
+    step: int
+    objective: str
+    actions: ControlAction
+    justification: str
+    estimated_duration_minutes: int
+    exit_condition: str
+
 class StrategyDetail(BaseModel):
-    id: str = Field(..., alias="Case_ID")
-    condition: str = Field(..., alias="Condition_IF")
-    reasoning: str = Field(..., alias="Diagnosis_Tradeoff_Analysis")
-    control_priority: str = Field(..., alias="Primary_Control_Priority")
-    action_priority: List[str] = Field(..., alias="Prioritized_Action_Chain")
-    risk_level: str = Field(..., alias="Risk_level")
-    tradeoff: str = Field(..., alias="15 min_Goal_and_Tradeoff")
+    case_id: str
+    case_description: str
+    case_quantitative_description: str
+    risk_level: str
+    trigger_condition: TriggerCondition
+    diagnosis_and_strategy: str
+    control_sequence: List[ControlStep]
+    overall_15min_goal: str
 
 class LocalStrategies(BaseModel):
-    cases: List[StrategyDetail]
+    strategy_playbook: List[StrategyDetail]
 
 
 class CloudLLMOutput(BaseModel):
