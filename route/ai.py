@@ -19,7 +19,7 @@ async def get_insights() -> dict:
     plan = await llm_cache.get_plan()
     if plan is None:
         return {"error": "No plan available"}
-    insights = plan.p3_output.cases
+    insights = plan.local.cases
 
     if not insights:
         return {"error": "No insights available"}
@@ -41,7 +41,7 @@ async def get_strategies() -> list[dict]:
     if plan is None:
         raise ValueError("No plan available")
     
-    strategies = plan.p3_output.cases
+    strategies = plan.local.cases
     if not strategies:
         raise ValueError("No strategies available")
     return [{
@@ -63,8 +63,8 @@ async def get_target() -> dict:
     if plan is None:
         raise ValueError("No plan available")
 
-    target = plan.p2_output.lighting_strategy
-    basic_knowledge = plan.p1_output
+    target = plan.overall.lighting_strategy
+    basic_knowledge = plan.online
 
     if not target or not basic_knowledge:
         raise ValueError("No target or basic knowledge available")
@@ -90,7 +90,7 @@ async def get_human_task() -> list[dict]:
     if plan is None:
         raise ValueError("No plan available")
 
-    human_tasks = plan.p2_output.manual_check_recommendations
+    human_tasks = plan.overall.manual_check_recommendations
     if not human_tasks:
         raise ValueError("No human tasks available")
     return [{
@@ -106,7 +106,7 @@ async def get_verification() -> list[dict]:
     plan = await llm_cache.get_plan()
     if plan is None:
         raise ValueError("No plan available")
-    verifications = plan.p2_output.strategy_failure_escalation
+    verifications = plan.overall.strategy_failure_escalation
     if not verifications:
         raise ValueError("No verifications available")
     return [{
@@ -125,7 +125,7 @@ async def update_strategy(strategy_id: int, strategy: dict) -> dict:
     if plan is None:
         raise ValueError("No plan available")
 
-    strategies = plan.p3_output.cases
+    strategies = plan.local.cases
     if not strategies or strategy_id < 1 or strategy_id > len(strategies):
         raise ValueError("Invalid strategy ID")
 
@@ -155,7 +155,7 @@ async def delete_strategy(strategy_id: int) -> dict:
     if plan is None:
         raise ValueError("No plan available")
 
-    strategies = plan.p3_output.cases
+    strategies = plan.local.cases
     if not strategies or strategy_id < 1 or strategy_id > len(strategies):
         raise ValueError("Invalid strategy ID")
 
@@ -173,11 +173,11 @@ async def update_target(target: dict) -> dict:
         raise ValueError("No plan available")
 
     # Validate the incoming target data
-    lighting_strategy = plan.p2_output.lighting_strategy.model_validate(target)
+    lighting_strategy = plan.overall.lighting_strategy.model_validate(target)
     if not lighting_strategy:
         raise ValueError("Invalid target data")
 
     # Update the target
-    plan.p2_output.lighting_strategy = lighting_strategy
+    plan.overall.lighting_strategy = lighting_strategy
     await llm_cache.set_plan(plan)
     return {"message": "Target updated successfully"}

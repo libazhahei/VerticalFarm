@@ -301,22 +301,17 @@ class SensorDataMsg(BLEMessageType):
         self.timestamp = int(datetime.now().timestamp())
 
     def to_byte_array(self) -> bytearray:
-        byte_array = bytearray(20)
+        byte_array = bytearray(12)
         byte_array[0] = self.board_id
-        temp = int(self.temperature * 100)
-        byte_array[1] = temp & 0xFF
-        byte_array[2] = (temp >> 8) & 0xFF
-        byte_array[3] = self.light_intensity & 0xFF
-        byte_array[4] = (self.light_intensity >> 8) & 0xFF
-        byte_array[5] = self.fans_real & 0xFF
-        byte_array[6] = (self.fans_real >> 8) & 0xFF
-        byte_array[7] = int(self.humidity * 100) & 0xFF
-        byte_array[8] = (int(self.humidity * 100) >> 8) & 0xFF
+        temp_raw = int(self.temperature * 100)
+        byte_array[1:3] = struct.pack('>H', temp_raw)
+        byte_array[3:5] = struct.pack('>H', self.light_intensity)
+        byte_array[5:7] = struct.pack('>H', self.fans_real)
+        humidity_raw = int(self.humidity * 100)
+        byte_array[7:9] = struct.pack('>H', humidity_raw)
         byte_array[9] = self.status.value
         byte_array[10] = self.fans_abs
         byte_array[11] = self.led_abs
-        for i in range(12, 20):
-            byte_array[i] = 0
         return byte_array
 
     @classmethod

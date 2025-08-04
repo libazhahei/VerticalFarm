@@ -98,9 +98,9 @@ class DailyPlan:
             p3 = LocalStrategies.model_validate_json(f3.read())
 
         return CloudLLMOutput(
-            p1_output=p1,
-            p2_output=p2,
-            p3_output=p3
+            online=p1,
+            overall=p2,
+            local=p3
         )
 
     def _search_knowledge(self, curr_status: ChainPart1UserInput):
@@ -379,6 +379,7 @@ class DailyPlan:
             "<string: Action #2>", 
             // ...add more as needed
         ],
+        "Risk_level": "<string: Risk level of this case, e.g., 'High', 'Medium', 'Low'>",
         "15 min_Goal_and_Tradeoff": "<string: Environmental target(s) and any sacrificed parameters>"
         ], 
         ... add more distinct and critical cases as needed
@@ -410,9 +411,9 @@ class DailyPlan:
             self._generate_strategy(curr_status, p1_output)
         )
         return CloudLLMOutput(
-            p1_output=p1_output,
-            p2_output=p2_output,
-            p3_output=p3_output
+            online=p1_output,
+            overall=p2_output,
+            local=p3_output
         )
 
 class LLMCacheKey(str, Enum):

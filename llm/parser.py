@@ -1,5 +1,5 @@
 from typing import List, Optional, Union
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 # P1 Output Model
 class Reference(BaseModel):
@@ -37,7 +37,7 @@ class ClimateStrategy(BaseModel):
     control_logic: str
 
 class ManualCheckRecommendation(BaseModel):
-    task: str
+    task: str 
     todo: str
 
 class StrategyFailureEscalation(BaseModel):
@@ -53,6 +53,16 @@ class OverallTarget(BaseModel):
     manual_check_recommendations: List[ManualCheckRecommendation]
     strategy_failure_escalation: List[StrategyFailureEscalation]
 
+    @model_validator(mode='before')
+    @classmethod
+    def convert_raw_list(cls, values):
+        if isinstance(values.get("manual_check_recommendations"), list):
+            values["manual_check_recommendations"] = [
+                {"task": item, "todo": explanation}
+                for item, explanation in values["manual_check_recommendations"]
+            ]
+        return values
+    
 # P3 Output Model
 class StrategyDetail(BaseModel):
     id: str = Field(..., alias="Case_ID")
@@ -68,9 +78,9 @@ class LocalStrategies(BaseModel):
 
 
 class CloudLLMOutput(BaseModel):
-    p1_output: OnlineResult
-    p2_output: OverallTarget
-    p3_output: LocalStrategies
+    online: OnlineResult
+    overall: OverallTarget
+    local: LocalStrategies
 
     class Config:
         allow_population_by_field_name = True
