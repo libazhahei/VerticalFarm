@@ -6,12 +6,14 @@ import aiorwlock
 from attr import dataclass
 from langchain_core.output_parsers import JsonOutputParser
 from llm.parser import OnlineResult, OverallTarget, LocalStrategies, CloudLLMOutput
+# from llm.parser import OnlineResult
 
 # import openai
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_perplexity import ChatPerplexity
 from pydantic import SecretStr
+from langchain_core.messages import BaseMessage
 
 system_prompt = """
 You are an intelligent assistant specializing in environmental monitoring for indoor vertical farms.
@@ -149,17 +151,67 @@ class DailyPlan:
                                         temperature=0.5, 
                                         timeout=30, 
                                         api_key=SecretStr(self.preplexity_key))
-
-
-        json_parser_p1 = JsonOutputParser()
-
         chain_part1 = P1_prompt | perplexity_llm 
         response_1 = chain_part1.invoke(
             curr_status.to_dict(),
         )
-        from llm.parser import OnlineResult
-        response_1_json = json_parser_p1.invoke(response_1)
-        return OnlineResult.model_validate(response_1_json)
+        response = self._parse_json(response_1, OnlineResult)
+        return OnlineResult.model_validate(response)
+
+    def _parse_json(self, json_str: BaseMessage, expect_type: Any) -> str:
+        """
+        Parse the JSON string and return a formatted string.
+        """
+        json_parser = JsonOutputParser()
+        try:
+            parsed_json = json_parser.invoke(json_str)
+            expect_type.model_validate(parsed_json)
+            return expect_type.model_validate(parsed_json).model_dump_json()
+        except Exception as e:
+            pass 
+        json_fix_template = """
+        ## Role
+        You are a JSON converter and repair tool.
+
+        ## Task
+        Your task is to:
+        - Parse the given content (which may contain syntax errors or be only partially structured like JSON)
+        - Validate and convert it into a fully valid JSON that conforms to the following JSON Schema.
+        - Fix formatting issues (e.g. unquoted strings, booleans like True/False, trailing commas).
+        - Coerce compatible values (e.g. numbers in strings → numbers, if schema expects so).
+        - Ensure all required fields are present, setting them to null if they cannot be inferred.
+
+        ## JSON Schema (use this as the ground truth structure):
+        {json_schema}
+
+        ## Input:
+        {error_json}
+        ---
+        ## Output:
+        Return only the corrected JSON. Do not add comments or explanations. If any required fields are missing and cannot be inferred, set them to null.
+
+        {{corrected_json}}
+        """
+        json_fix_prompt = PromptTemplate.from_template(json_fix_template)
+        json_fix_llm = ChatOpenAI(
+            model="gpt-4.1-nano",
+            api_key=SecretStr(self.openai_key),
+        )
+        json_fix_chain = json_fix_prompt | json_fix_llm | json_parser
+        try:
+            fixed_json = json_fix_chain.invoke(
+                input={
+                    "error_json": json_str.content,
+                    "json_schema": expect_type.model_json_schema()
+                }
+            )
+            return expect_type.model_validate(fixed_json).model_dump_json()
+        except Exception as e:
+            print(f"Error parsing JSON: {e}")
+            print(f"Original content: {json_str.content}")
+            return "{}"  # Return empty JSON if parsing fails
+            # return expect_type.model_validate({}).model_dump_json()
+
 
     def _prepare_input(self, original_input_json: dict, p1_output: dict) -> dict:
         return {
@@ -272,12 +324,12 @@ class DailyPlan:
             model="gpt-4.1",
             api_key=SecretStr(self.openai_key),
         )
-        json_parser_p2 = JsonOutputParser()
-        chain_part2 = P2_prompt | task2_llm | json_parser_p2
+        chain_part2 = P2_prompt | task2_llm 
         p2_input = self._prepare_input(curr_status.to_dict(), p1_output)
         from llm.parser import OverallTarget
         response_2 = await chain_part2.ainvoke(p2_input)
-        return OverallTarget.model_validate(response_2)
+        response = self._parse_json(response_2, OnlineResult)
+        return OverallTarget.model_validate(response)
 
     async def _generate_strategy(self, curr_status: ChainPart1UserInput, p1_output) -> LocalStrategies:
         P3_prompt_template = """
@@ -388,15 +440,15 @@ class DailyPlan:
         """
         P3_prompt = PromptTemplate.from_template(P3_prompt_template)
         task3_llm = ChatOpenAI(
-            model="gpt-4.1",
+            model="o4-mini",
             api_key=SecretStr(self.openai_key),
         )
-        json_parser_p3 = JsonOutputParser()
-        chain_part3 = P3_prompt | task3_llm | json_parser_p3
+        chain_part3 = P3_prompt | task3_llm
         p3_input = self._prepare_input(curr_status.to_dict(), p1_output)
         from llm.parser import LocalStrategies
-        response_3 = await chain_part3.ainvoke(p3_input)
-        return LocalStrategies.model_validate(response_3)
+        response_3 = chain_part3.invoke(p3_input)
+        response = self._parse_json(response_3, LocalStrategies)
+        return LocalStrategies.model_validate(response)
 
     async def generate_daily_plan(self, curr_status: ChainPart1UserInput) -> CloudLLMOutput:
         """
@@ -424,7 +476,7 @@ class LLMCacheKey(str, Enum):
 class CloudLLMCache: 
     _instance: Optional["CloudLLMCache"] = None
     _lock = aiorwlock.RWLock()
-    _cache: Dict[str, CloudLLMOutput] = {}
+    _cache_plan: Optional[CloudLLMOutput] = None
 
     @classmethod
     async def get_instance(cls) -> "CloudLLMCache":
@@ -435,11 +487,11 @@ class CloudLLMCache:
 
     async def get_plan(self) -> Optional[CloudLLMOutput]:
         async with self._lock.reader_lock:
-            return self._cache.get(LLMCacheKey.DAILY_PLAN, None)
+            return self._cache_plan if isinstance(self._cache_plan, CloudLLMOutput) else None
 
     async def set_plan(self, plan: CloudLLMOutput) -> None:
         async with self._lock.writer_lock:
-            self._cache[LLMCacheKey.DAILY_PLAN] = plan
+            self._cache_plan = plan
 
     async def refresh_plan(self, planner: DailyPlan, curr_status: ChainPart1UserInput, demo: bool = False) -> CloudLLMOutput:
         async with self._lock.writer_lock:
@@ -447,5 +499,5 @@ class CloudLLMCache:
                 new_plan = planner.demo_data()
             else:
                 new_plan = await planner.generate_daily_plan(curr_status)
-            self._cache[LLMCacheKey.DAILY_PLAN] = new_plan
+            self._cache_plan = new_plan
             return new_plan

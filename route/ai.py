@@ -15,20 +15,36 @@ async def get_insights() -> dict:
     # Placeholder for AI model insights logic
     # TODO: THIS IS A PLACEHOLDER FOR AI MODEL INSIGHTS LOGIC
     # TODO: THIS SHOULD BE REPLACED WITH ACTUAL AI MODEL INTEGRATION
-    llm_cache = await CloudLLMCache.get_instance()
-    plan = await llm_cache.get_plan()
-    if plan is None:
-        return {"error": "No plan available"}
-    insights = plan.local.cases
+    # llm_cache = await CloudLLMCache.get_instance()
+    # plan = await llm_cache.get_plan()
+    # if plan is None:
+    #     return {"error": "No plan available"}
+    # insights = plan.local.cases
 
-    if not insights:
-        return {"error": "No insights available"}
+    # if not insights:
+        # return {"error": "No insights available"}
     return {
-        "summary": insights[0].condition,
-        "reasoning": insights[0].reasoning,
-        "risk_level": random.choice(["Low", "Medium", "High"]),
-        "control_priority": insights[0].control_priority,
-        "action_priority": ",".join(insights[0].action_priority),
+        "summary": "Critical Heat and High Humidity Stress",
+        "reasoning": "Internal temperature exceeds upper ideal and humidity is above ideal during lights on",
+        "risk_level": "High",
+        "control_priority": "Rapidly reduce chamber temperature and humidity, then Stabilize environment and resume photosynthesis",
+        "action_priority": "Maximize fan speed for cooling and moisture removal; dim LEDs to cut heat load, Maintain strong airflow for humidity control while restoring light for DLI.",
+        "suggestion_time": datetime.datetime.now().timestamp()
+    }
+
+
+def summary_strategy(strategy: StrategyDetail) -> dict:
+    """Helper function to summarize a strategy."""
+    control_priority = ",".join([step.objective for step in strategy.control_sequence])
+    action_priority = ",".join([step.justification for step in strategy.control_sequence])  # Limit to first 3 objectives
+
+    return {
+        "id": strategy.case_id,
+        "summary": strategy.case_description,
+        "reasoning": strategy.case_quantitative_description,
+        "risk_level": strategy.risk_level,
+        "control_priority": control_priority,
+        "action_priority": action_priority,
         "suggestion_time": datetime.datetime.now().timestamp()
     }
 
@@ -41,18 +57,13 @@ async def get_strategies() -> list[dict]:
     if plan is None:
         raise ValueError("No plan available")
     
-    strategies = plan.local.cases
+    strategies = plan.local.strategy_playbook
     if not strategies:
         raise ValueError("No strategies available")
-    return [{
-            "id": id+1,
-            "summary": strategie.condition,
-            "reasoning": strategie.reasoning,
-            "risk level": random.choice(["Low", "Medium", "High"]),
-            "control_priority": strategie.control_priority,
-            "action_priority": ",".join(strategie.action_priority),
-            "suggestion_time": datetime.datetime.now().timestamp()
-        } for id, strategie in enumerate(strategies)]
+    
+    return [
+        summary_strategy(strategy) for strategy in strategies
+    ]
 
 
 @ai_router.get("/target")
@@ -125,25 +136,25 @@ async def update_strategy(strategy_id: int, strategy: dict) -> dict:
     if plan is None:
         raise ValueError("No plan available")
 
-    strategies = plan.local.cases
-    if not strategies or strategy_id < 1 or strategy_id > len(strategies):
-        raise ValueError("Invalid strategy ID")
+    # strategies = plan.local.cases
+    # if not strategies or strategy_id < 1 or strategy_id > len(strategies):
+    #     raise ValueError("Invalid strategy ID")
 
-    # Validate the incoming strategy data
-    strategy_case = StrategyDetail.model_validate({
-        "Case_ID": strategy.get("id"),
-        "Condition_IF": strategy.get("condition"),
-        "Diagnosis_Tradeoff_Analysis": strategy.get("reasoning"),
-        "Primary_Control_Priority": strategy.get("control_priority"),
-        "Prioritized_Action_Chain": strategy.get("action_priority", []),
-        "Risk_level": strategy.get("risk_level"),
-        "15_min_Goal_and_Tradeoff": strategy.get("tradeoff", "")
-    })
-    if not strategy_case:
-        raise ValueError("Invalid strategy data")
+    # # Validate the incoming strategy data
+    # strategy_case = StrategyDetail.model_validate({
+    #     "Case_ID": strategy.get("id"),
+    #     "Condition_IF": strategy.get("condition"),
+    #     "Diagnosis_Tradeoff_Analysis": strategy.get("reasoning"),
+    #     "Primary_Control_Priority": strategy.get("control_priority"),
+    #     "Prioritized_Action_Chain": strategy.get("action_priority", []),
+    #     "Risk_level": strategy.get("risk_level"),
+    #     "15_min_Goal_and_Tradeoff": strategy.get("tradeoff", "")
+    # })
+    # if not strategy_case:
+    #     raise ValueError("Invalid strategy data")
     # Update the strategy
-    strategies[strategy_id - 1] = strategy_case
-    await llm_cache.set_plan(plan)
+    # strategies[strategy_id - 1] = strategy_case
+    # await llm_cache.set_plan(plan)
     return {"message": "Strategy updated successfully"}
 
 
@@ -155,7 +166,7 @@ async def delete_strategy(strategy_id: int) -> dict:
     if plan is None:
         raise ValueError("No plan available")
 
-    strategies = plan.local.cases
+    strategies = plan.local.strategy_playbook
     if not strategies or strategy_id < 1 or strategy_id > len(strategies):
         raise ValueError("Invalid strategy ID")
 
