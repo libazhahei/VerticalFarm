@@ -9,6 +9,7 @@ from aiorwlock import RWLock
 from tortoise import fields
 from tortoise.exceptions import ConfigurationError
 from tortoise.models import Model
+from tortoise.transactions import in_transaction
 
 from .config import BATCH_SIZE, BATCH_TIMEOUT_MS
 
@@ -279,8 +280,17 @@ class BoardDataBatchWriter:
                 return
             data_to_write, self.buffer = self.buffer, []
 
-
+        def deduplicate_board_data(data):
+            unique_map = {}
+            for row in data:
+                key = (row.board_id, row.timestamp)
+                unique_map[key] = row 
+            return list(unique_map.values())
+        data_to_write = deduplicate_board_data(data_to_write)
         try:
+            async with in_transaction() as conn:
+                for row in data_to_write:
+                    await BoardData.filter(board_id=row.board_id, timestamp=row.timestamp).using_db(conn).delete()
             await BoardData.bulk_create(data_to_write)
         except Exception as e:
             print(f"Flush failed: {e}")

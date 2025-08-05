@@ -674,7 +674,7 @@ class BLEClientWrapper:
         while self.is_running:
             try:
                 if client is None:
-                    print(device.address)
+                    # print(device.address)
                     client = BleakClient(
                         device,
                         disconnected_callback=lambda c: print(
@@ -697,7 +697,7 @@ class BLEClientWrapper:
                     try:
                         for char_uuid in self._characteristic_parsers.keys():
                             # char_uuid = get_characteristic_uuid(board_id)
-                            print(char_uuid)
+                            # print(char_uuid)
                             await client.start_notify(char_uuid, self.on_ble_notification)
                         print(f"BLE: Subscribed to {char_uuid} on {device.name}.")
                     except BleakError as e:

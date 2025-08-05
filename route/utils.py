@@ -17,7 +17,7 @@ from gateway.service import BLEServiceContext, MQTTServiceContext
 FAKE_LOWER_COMPUTER_COMMUNICATION = True  # Set to True for testing purposes
 
 global exit_fake_loop 
-exit_fake_loop = False
+exit_fake_loop = True
 
 class RunningMode(int, Enum):
     """Enum to represent different running modes of the application."""

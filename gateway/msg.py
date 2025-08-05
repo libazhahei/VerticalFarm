@@ -111,16 +111,18 @@ class ControlMsg(MQTTMessageType):
         self.light_intensity = light_intensity
         self.message_id = message_id
         self.timestamp = timestamp
+        self.__post_init__()
 
     def __post_init__(self):
         if self.mode not in (Mode.ABSOLUTE, Mode.RELATIVE):
             raise ValueError(f"Invalid mode: {self.mode}. Must be either ABSOLUTE or RELATIVE.")
         if not (0 <= self.board_id <= 6):
             raise ValueError(f"Board ID must be between 0 and 6, got {self.board_id}.")
-        if not (0 <= self.fan <= 255 and self.mode == Mode.ABSOLUTE):
-            raise ValueError(f"Fan value must be between 0 and 255, got {self.fan}.")
-        if not (0 <= self.led <= 255 and self.mode == Mode.ABSOLUTE ):
-            raise ValueError(f"LED value must be between 0 and 255, got {self.led}.")
+        if self.mode == Mode.ABSOLUTE:
+            if not (0 <= self.fan <= 255):
+                raise ValueError(f"Fan value must be between 0 and 255, got {self.fan}.")
+            if not (0 <= self.led <= 255 ):
+                raise ValueError(f"LED value must be between 0 and 255, got {self.led}.")
         if not (0 <= self.temperature <= 100):
             raise ValueError(f"Temperature must be between 0 and 100, got {self.temperature}.")
         if not (0 <= self.light_intensity <= 100):
@@ -192,25 +194,27 @@ class StatusMsg(MQTTMessageType):
 
     message_id: int
     board_id: int
-    status: int
+    status: str
     timestamp: float
 
-    def __init__(self, board_id: int, status: int, message_id: int = 0, timestamp: float = 0.0):
+    def __init__(self, board_id: int, status: str, message_id: int = 0, timestamp: float = 0.0):
         self.board_id = board_id
         self.status = status
         self.message_id = message_id
         self.timestamp = timestamp
+        # self.__post_init__()
 
 
     def __post_init__(self):
         if not (0 <= self.board_id <= 6):
             raise ValueError(f"Board ID must be between 0 and 6, got {self.board_id}.")
-        if self.status not in (Status.OK, Status.ERROR, Status.WARNING):
+        if self.status not in ("OK", "FAIL"):
             raise ValueError(f"Invalid status: {self.status}. Must be either OK, ERROR, or WARNING.")
         self.message_id = IDGenerator.next_id()
         self.timestamp = datetime.now().timestamp()
 
     def to_dict(self) -> dict:
+        """Convert the message to a dictionary."""
         return {
             "messageID": self.message_id,
             "boardID": self.board_id,
@@ -232,6 +236,7 @@ class StatusMsg(MQTTMessageType):
 
     def parse_json(self, json_str: str):
         return super().parse_json(json_str)
+    
 @dataclass
 class HeartbeatMsg(MQTTMessageType):
     board_id: int
@@ -299,6 +304,7 @@ class SensorDataMsg(BLEMessageType):
         if not (0 <= self.led_abs <= 255):
             raise ValueError(f"LED absolute value must be between 0 and 255, got {self.led_abs}.")
         self.timestamp = int(datetime.now().timestamp())
+
 
     def to_byte_array(self) -> bytearray:
         byte_array = bytearray(12)

@@ -43,15 +43,16 @@ async def lifespan(app: FastAPI) -> Any:
     # logger.debug("🌟 This is a debug message")
     await init_schema()
     logger.info("Database schema initialized.")
-    cache = await CloudLLMCache.get_instance()
-    planner = DailyPlanner("123", "123")
-    user_setting = ChainPart1UserInput(
-        plant= "Tomato",
-        growth_stage= "Seedling",
-        target_orientation= "Keep the plants healthy and growing",
-        comments= "",
-    )
-    await cache.refresh_plan(planner, user_setting, demo=True)
+    # TODO: Initialize MQTT and BLE services
+    # cache = await CloudLLMCache.get_instance()
+    # planner = DailyPlanner("123", "123")
+    # user_setting = ChainPart1UserInput(
+    #     plant= "Tomato",
+    #     growth_stage= "Seedling",
+    #     target_orientation= "Keep the plants healthy and growing",
+    #     comments= "",
+    # )
+    # await cache.refresh_plan(planner, user_setting, demo=True)
     mqtt_service = MQTTServiceContext(
         broker_host=MQTT_BROKER_HOST,
         broker_port=MQTT_BROKER_PORT,
