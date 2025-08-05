@@ -70,13 +70,13 @@ class AIDailyStrategy(Model):
 
     id = fields.IntField(pk=True)
     strategy_date = fields.DateField()
-    condition = fields.TextField()
-    action = fields.TextField()
-
-
+    user_input = fields.JSONField()
+    online_content = fields.JSONField(null=True)
+    overall_content = fields.JSONField(null=True)
+    local_strategy_content = fields.JSONField(null=True)
+    uuid = fields.CharField(max_length=36, unique=True, null=True)
     class Meta:
         table = "ai_daily_strategies"
-        unique_together = (("strategy_date",),)
 
 
 

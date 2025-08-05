@@ -12,7 +12,7 @@ from uvicorn import run
 from data.config import init_schema
 from data.tables import BoardDataBatchWriter
 from gateway.service import BLEServiceContext, MQTTServiceContext
-from llm.cloud import ChainPart1UserInput, CloudLLMCache, DailyPlan
+from llm.cloud import ChainPart1UserInput, CloudLLMCache, DailyPlanner
 from route.ai import ai_router
 from route.control import control_router
 from route.history import history_router
@@ -44,7 +44,7 @@ async def lifespan(app: FastAPI) -> Any:
     await init_schema()
     logger.info("Database schema initialized.")
     cache = await CloudLLMCache.get_instance()
-    planner = DailyPlan("123", "123")
+    planner = DailyPlanner("123", "123")
     user_setting = ChainPart1UserInput(
         plant= "Tomato",
         growth_stage= "Seedling",

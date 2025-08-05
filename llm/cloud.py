@@ -1,11 +1,17 @@
 import asyncio
+from datetime import timedelta, datetime
 from enum import Enum
 from typing import Any, Callable, Dict, Optional
 import json
+import uuid
+from zoneinfo import ZoneInfo
 import aiorwlock
 from attr import dataclass
 from langchain_core.output_parsers import JsonOutputParser
-from llm.parser import OnlineResult, OverallTarget, LocalStrategies, CloudLLMOutput
+from data.tables import AIDailyStrategy
+from gateway.constants import TIMEZONE
+from llm.parser import OnlineResult, OverallTarget, LocalStrategies, CloudLLMOutput, fix_and_validate_json
+from langchain_core.messages import BaseMessage
 # from llm.parser import OnlineResult
 
 # import openai
@@ -13,7 +19,6 @@ from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_perplexity import ChatPerplexity
 from pydantic import SecretStr
-from langchain_core.messages import BaseMessage
 
 system_prompt = """
 You are an intelligent assistant specializing in environmental monitoring for indoor vertical farms.
@@ -83,7 +88,7 @@ class ChainPart1UserInput:
     
 
 
-class DailyPlan:
+class DailyPlanner:
     def __init__(self, openai_key: str, preplexity_key: str) -> None:
         self.preplexity_key = preplexity_key
         self.openai_key = openai_key
@@ -169,49 +174,10 @@ class DailyPlan:
             return expect_type.model_validate(parsed_json).model_dump_json()
         except Exception as e:
             pass 
-        json_fix_template = """
-        ## Role
-        You are a JSON converter and repair tool.
-
-        ## Task
-        Your task is to:
-        - Parse the given content (which may contain syntax errors or be only partially structured like JSON)
-        - Validate and convert it into a fully valid JSON that conforms to the following JSON Schema.
-        - Fix formatting issues (e.g. unquoted strings, booleans like True/False, trailing commas).
-        - Coerce compatible values (e.g. numbers in strings → numbers, if schema expects so).
-        - Ensure all required fields are present, setting them to null if they cannot be inferred.
-
-        ## JSON Schema (use this as the ground truth structure):
-        {json_schema}
-
-        ## Input:
-        {error_json}
-        ---
-        ## Output:
-        Return only the corrected JSON. Do not add comments or explanations. If any required fields are missing and cannot be inferred, set them to null.
-
-        {{corrected_json}}
-        """
-        json_fix_prompt = PromptTemplate.from_template(json_fix_template)
-        json_fix_llm = ChatOpenAI(
+        return fix_and_validate_json(json_str, expect_type, ChatOpenAI(
             model="gpt-4.1-nano",
             api_key=SecretStr(self.openai_key),
-        )
-        json_fix_chain = json_fix_prompt | json_fix_llm | json_parser
-        try:
-            fixed_json = json_fix_chain.invoke(
-                input={
-                    "error_json": json_str.content,
-                    "json_schema": expect_type.model_json_schema()
-                }
-            )
-            return expect_type.model_validate(fixed_json).model_dump_json()
-        except Exception as e:
-            print(f"Error parsing JSON: {e}")
-            print(f"Original content: {json_str.content}")
-            return "{}"  # Return empty JSON if parsing fails
-            # return expect_type.model_validate({}).model_dump_json()
-
+        ))
 
     def _prepare_input(self, original_input_json: dict, p1_output: dict) -> dict:
         return {
@@ -468,15 +434,12 @@ class DailyPlan:
             local=p3_output
         )
 
-class LLMCacheKey(str, Enum):
-    DAILY_PLAN = "daily_plan"
-    REPORT = "report"
-
-
 class CloudLLMCache: 
     _instance: Optional["CloudLLMCache"] = None
     _lock = aiorwlock.RWLock()
     _cache_plan: Optional[CloudLLMOutput] = None
+    _user_input: Optional[ChainPart1UserInput] = None
+    id: Optional[str] = None
 
     @classmethod
     async def get_instance(cls) -> "CloudLLMCache":
@@ -489,15 +452,132 @@ class CloudLLMCache:
         async with self._lock.reader_lock:
             return self._cache_plan if isinstance(self._cache_plan, CloudLLMOutput) else None
 
+    async def _update_in_db(self, plan: CloudLLMOutput, id: Optional[str] = None) -> str:
+        """
+        Update the plan in the database.
+        This is a placeholder for actual database update logic.
+        """
+        if self._user_input is None:
+            raise ValueError("User input is not set.")
+        if id is not None:
+            # Update existing record
+            await AIDailyStrategy.filter(uuid=id).update(
+                strategy_date=datetime.now(tz=ZoneInfo(TIMEZONE)),
+                user_input=self._user_input.to_dict(),
+                online_content=plan.online.model_dump_json(),
+                overall_content=plan.overall.model_dump_json(),
+                local_strategy_content=plan.local.model_dump_json()
+            )
+            return id
+        else:
+            id = uuid.uuid4().hex
+            await AIDailyStrategy.create(
+                strategy_date=datetime.now(tz=ZoneInfo(TIMEZONE)),
+                user_input=self._user_input.to_dict(),
+                online_content=plan.online.model_dump_json(),
+                overall_content=plan.overall.model_dump_json(),
+                local_strategy_content=plan.local.model_dump_json(),
+                uuid=id
+            )
+            self.id = id
+            return id
+
+
     async def set_plan(self, plan: CloudLLMOutput) -> None:
         async with self._lock.writer_lock:
             self._cache_plan = plan
+            await self._update_in_db(plan, self.id)
 
-    async def refresh_plan(self, planner: DailyPlan, curr_status: ChainPart1UserInput, demo: bool = False) -> CloudLLMOutput:
+    async def refresh_plan(self, planner: DailyPlanner, curr_status: ChainPart1UserInput, demo: bool = False) -> CloudLLMOutput:
         async with self._lock.writer_lock:
             if demo:
                 new_plan = planner.demo_data()
             else:
                 new_plan = await planner.generate_daily_plan(curr_status)
             self._cache_plan = new_plan
+            self._user_input = curr_status
+            id = await self._update_in_db(new_plan)
             return new_plan
+
+
+class CloudLLMManager:
+    cache: CloudLLMCache
+    planner: DailyPlanner
+    refresh_interval: timedelta
+    is_running: bool
+    _task: Optional[asyncio.Task] = None
+    plant_info: Optional[ChainPart1UserInput] = None
+    _stop_event: asyncio.Event
+    _manual_refresh_event: asyncio.Event
+
+    def __init__(self, openai_key: str, preplexity_key: str, refresh_interval: timedelta) -> None:
+        """
+        Initialize the CloudLLMManager.
+        """
+        self.cache = CloudLLMCache()
+        self.planner = DailyPlanner(openai_key, preplexity_key)
+        self.refresh_interval = refresh_interval
+        self.is_running = False
+        self._stop_event = asyncio.Event()
+        self._manual_refresh_event = asyncio.Event()
+        self.plant_info = None
+
+    def start(self, plant_info: ChainPart1UserInput, demo: bool = False) -> None:
+        """
+        Start the background refreshing task.
+        """
+        if not self.is_running:
+            self.is_running = True
+            self.plant_info = plant_info
+            self._stop_event.clear()
+            self._manual_refresh_event.clear()
+            self._task = asyncio.create_task(self._run(demo=demo))
+        else:
+            print("CloudLLMManager is already running.")
+
+    async def stop(self) -> None:
+        """
+        Stop the background task and wait for its completion.
+        """
+        if self.is_running:
+            self.is_running = False
+            self._stop_event.set()
+            if self._task:
+                await self._task
+                self._task = None
+        else:
+            print("CloudLLMManager is not running.")
+
+    async def _run(self, demo: bool = False) -> None:
+        """
+        Background task that waits for the refresh_interval or manual trigger.
+        """
+        while not self._stop_event.is_set():
+            try:
+                if self.plant_info:
+                    await self.cache.refresh_plan(self.planner, self.plant_info, demo=demo)
+                    print(f"[CloudLLMManager] Plan refreshed at {datetime.now()}")
+
+                try:
+                    await asyncio.wait_for(self._manual_refresh_event.wait(), timeout=self.refresh_interval.total_seconds())
+                except asyncio.TimeoutError:
+                    pass
+                self._manual_refresh_event.clear()
+            except Exception as e:
+                print(f"[CloudLLMManager] Error during refresh: {e}")
+
+    async def manual_refresh(self, plant_info: Optional[ChainPart1UserInput] = None, demo: bool = False) -> None:
+        """
+        Trigger manual refresh immediately. If plant_info is provided, update it.
+        """
+        if plant_info:
+            self.plant_info = plant_info
+        if not self.is_running:
+            raise RuntimeError("CloudLLMManager is not running. Call start() first.")
+        self._manual_refresh_event.set()
+
+    async def get_current_plan(self) -> Optional[CloudLLMOutput]:
+        """
+        Get the currently cached plan.
+        """
+        return await self.cache.get_plan()
