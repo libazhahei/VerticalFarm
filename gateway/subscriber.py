@@ -385,6 +385,22 @@ class CommonDataRetriver(BLESubscriber):
                 "num_samples": num_sample
             }
 
+    async def get_lastest_data(self) -> dict[str, float]:
+        """Returns the latest sensor data values.
+
+        Returns:
+            dict[str, float]: A dictionary containing the latest temperature, light intensity,
+                              humidity, fan speed, and LED value. If no data is available, all values will be 0.0.
+        """
+        async with self.lock.reader_lock:
+            return {
+                "temperature": self.latest_temperature,
+                "light_intensity": self.latest_light_intensity,
+                "humidity": self.latest_humidity,
+                "fans_real": self.latest_fan_speed,
+                "led_abs": self.latest_led,
+                "timestamp": self.latest_timestamp.timestamp() if self.latest_timestamp else 0.0
+            }
 
 class MessageDispatcher:
     """A class responsible for dispatching messages to registered handlers asynchronously.
