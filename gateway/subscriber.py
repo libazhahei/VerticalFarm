@@ -281,6 +281,7 @@ class CommonDataRetriver(BLESubscriber):
     latest_fan_speed: float = 0.0
     latest_timestamp: Optional[datetime] = None
     latest_led: int = 0
+    latest_fan: int = 0
 
     retrivers: Dict[int, "CommonDataRetriver"] = {}
 
@@ -319,6 +320,7 @@ class CommonDataRetriver(BLESubscriber):
             self.latest_fan_speed = msg.fans_real
             self.latest_timestamp = datetime.now(tz=ZoneInfo(TIMEZONE))
             self.latest_led = msg.led_abs
+            self.latest_fan = msg.fans_abs
             
 
     def parse_bytes(self, msg_bytes: bytearray) -> SensorDataMsg:

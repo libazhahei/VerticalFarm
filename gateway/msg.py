@@ -186,6 +186,32 @@ class ControlMsg(MQTTMessageType):
                 f"fan={self.fan}, led={self.led}, temperature={self.temperature}, "
                 f"light_intensity={self.light_intensity}, message_id={self.message_id}, "
                 f"timestamp={self.timestamp})")
+    
+    def add(self, other: 'ControlMsg') -> 'ControlMsg':
+        """Add another ControlMsg to this one, returning a new ControlMsg."""
+        if self.board_id != other.board_id:
+            raise ValueError("Cannot add ControlMsg with different board IDs.")
+        return ControlMsg(
+            board_id=self.board_id,
+            mode=self.mode,
+            fan=self.fan + other.fan,
+            led=self.led + other.led,
+            temperature=(self.temperature + other.temperature) / 2,
+            light_intensity=(self.light_intensity + other.light_intensity) / 2,
+        )
+    
+    def combine(self, other: 'ControlMsg') -> 'ControlMsg':
+        if self.board_id != other.board_id:
+            raise ValueError("Cannot combine ControlMsg with different board IDs.")
+        
+        return ControlMsg(
+            board_id=self.board_id,
+            mode=self.mode,
+            fan=other.fan,
+            led=other.led,
+            temperature=other.temperature,
+            light_intensity=other.light_intensity,
+        )
 
 @dataclass
 class StatusMsg(MQTTMessageType):
