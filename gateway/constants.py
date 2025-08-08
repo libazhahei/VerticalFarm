@@ -40,6 +40,10 @@ RECONNECTION_DELAY_SECONDS = 5
 
 TIMEZONE = "Australia/Sydney"  # Default timezone for the application
 
+# Home Assistant
+HA_STATUS_TOPIC = "homeassistant/status"
+HA_DATA_TOPIC = "homeassistant/data"
+
 
 def get_service_uuid(board_id: int) -> str:
     """Generates a service UUID based on the board ID."""

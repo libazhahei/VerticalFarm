@@ -1,14 +1,16 @@
 import asyncio
 from datetime import datetime, timedelta
 from time import sleep
+from turtle import home
 
 from tortoise import Tortoise
 
 from data.config import init_schema
 from gateway import ControlMsg, MQTTServiceContext
 from gateway.msg import Mode
+from gateway.publisher import HomeAssistantDataPublisher
 from gateway.service import BLEServiceContext
-from gateway.subscriber import CommonDataRetriver
+from gateway.subscriber import CommonDataRetriver, HomeAssistantDataSubscriber
 
 ANSI_COLORS = {
     "black":   "30",
@@ -58,7 +60,11 @@ async def main() -> None:
     mqtt_service_context = MQTTServiceContext(broker_host="localhost", broker_port=5001, client_id="test_client")
     await mqtt_service_context.start()
     await init_schema()
+    client = mqtt_service_context.get_client()
+    home_ass_pub = HomeAssistantDataPublisher(client)
+    home_ass_sub = HomeAssistantDataSubscriber(home_ass_pub.publish_message)
     ble_service_context = BLEServiceContext([1])
+    ble_service_context.register_home_assistant_handler(home_ass_sub)
     await ble_service_context.start()
 
     try:
@@ -69,31 +75,35 @@ async def main() -> None:
         ansi_cprint(f"Is device 1 alive? {is_alive}")
         
         await asyncio.sleep(5)
-        ansi_cprint("Publishing control command to device 1...")
+        # ansi_cprint("Publishing control command to device 1...")
         retriver = CommonDataRetriver.get_instance(1)
         ansi_cprint(f"Data retriever for device 1: {await retriver.get_moving_average()}")
         ansi_cprint(f"Data retriever for device 1: {await retriver.get_lastest_data()}")
-        ansi_cprint("Publishing control LED command 0 to device 1...")
-        ctrl_msg = ControlMsg(board_id=1, led=255, mode=Mode.ABSOLUTE)
-        await mqtt_service_context.publish_control_command(ctrl_msg)
-        await asyncio.sleep(5)
-        ansi_cprint("Publishing control command 1 to device 1...")
-        ctrl_msg = ControlMsg(board_id=1, led=0, mode=Mode.ABSOLUTE)
-        await mqtt_service_context.publish_control_command(ctrl_msg)
-        ctrl_msg = ControlMsg(board_id=1, fan=255, mode=Mode.ABSOLUTE)
-        await mqtt_service_context.publish_control_command(ctrl_msg)
-        await asyncio.sleep(5)
-        ctrl_msg = ControlMsg(board_id=1, fan=0, mode=Mode.ABSOLUTE)
-        ctrl_msg = ControlMsg(board_id=1, temperature=15, mode=Mode.RELATIVE)
-        await mqtt_service_context.publish_control_command(ctrl_msg)
-        await asyncio.sleep(10)  
-        ctrl_msg = ControlMsg(board_id=1, fan=0, mode=Mode.ABSOLUTE)
-        await mqtt_service_context.publish_control_command(ctrl_msg)
-        await asyncio.sleep(5)
-        ansi_cprint(f"Data retriever for device 1: {await retriver.get_moving_average()}")
-        ansi_cprint(f"Data retriever for device 1: {await retriver.get_lastest_data()}")
-        data = await ble_service_context.fetch_data(since=datetime.now() - timedelta(days=1), board_ids=[1])
-        ansi_cprint(f"Fetched data: {data}")
+
+        for _ in range(50):
+            ansi_cprint("XXXXX")
+            await asyncio.sleep(0.5)
+        # ansi_cprint("Publishing control LED command 0 to device 1...")
+        # ctrl_msg = ControlMsg(board_id=1, led=255, mode=Mode.ABSOLUTE)
+        # await mqtt_service_context.publish_control_command(ctrl_msg)
+        # await asyncio.sleep(5)
+        # ansi_cprint("Publishing control command 1 to device 1...")
+        # ctrl_msg = ControlMsg(board_id=1, led=0, mode=Mode.ABSOLUTE)
+        # await mqtt_service_context.publish_control_command(ctrl_msg)
+        # ctrl_msg = ControlMsg(board_id=1, fan=255, mode=Mode.ABSOLUTE)
+        # await mqtt_service_context.publish_control_command(ctrl_msg)
+        # await asyncio.sleep(5)
+        # ctrl_msg = ControlMsg(board_id=1, fan=0, mode=Mode.ABSOLUTE)
+        # ctrl_msg = ControlMsg(board_id=1, temperature=15, mode=Mode.RELATIVE)
+        # await mqtt_service_context.publish_control_command(ctrl_msg)
+        # await asyncio.sleep(10)  
+        # ctrl_msg = ControlMsg(board_id=1, fan=0, mode=Mode.ABSOLUTE)
+        # await mqtt_service_context.publish_control_command(ctrl_msg)
+        # await asyncio.sleep(5)
+        # ansi_cprint(f"Data retriever for device 1: {await retriver.get_moving_average()}")
+        # ansi_cprint(f"Data retriever for device 1: {await retriver.get_lastest_data()}")
+        # data = await ble_service_context.fetch_data(since=datetime.now() - timedelta(days=1), board_ids=[1])
+        # ansi_cprint(f"Fetched data: {data}")
     finally:
         await mqtt_service_context.stop()
         await ble_service_context.stop()

@@ -3,13 +3,12 @@ import threading
 import traceback
 from collections.abc import Callable
 from datetime import datetime
-from typing import Any, List, Optional
-
+from typing import Any, List, Optional, Type
 from bleak import BleakClient, BleakScanner
 from bleak.backends.characteristic import BleakGATTCharacteristic
 from bleak.backends.device import BLEDevice
 from bleak.exc import BleakError
-from paho.mqtt.client import Client, MQTTMessage
+from paho.mqtt.client import Client, MQTTMessage 
 
 from data.tables import BoardData, BoardDataBatchWriter
 
@@ -33,11 +32,12 @@ from .msg import (
     SensorDataMsg,
     StatusMsg,
 )
-from .publisher import ControlCommandPublisher
+from .publisher import ControlCommandPublisher, HomeAssistantDataPublisher
 from .subscriber import (
     CommandResponseSubscriber,
     CommonDataRetriver,
     HeartbeatSubscriber,
+    HomeAssistantDataSubscriber,
     MessageDispatcher,
     SensorDataSubscriber,
 )
@@ -372,6 +372,7 @@ class MQTTServiceContext:
 
         """
         self.publish_client.connect(*self.borker_info, 60)
+        self.publish_client.loop_start()
         await self.subscribe_client.start()
         await self.msg_dispatcher.start()
         print("MQTT Service Context started.")
@@ -455,10 +456,17 @@ class MQTTServiceContext:
             bool: True if both the subscribe client and publish client are connected,
                   False otherwise.
 
+                  
         """
+        print("subscribe client connected:", self.subscribe_client.is_connected())
+        print("publish client connected:", self.publish_client.is_connected())
         return (
             self.subscribe_client.is_connected() and self.publish_client.is_connected()
         )
+
+
+
+        
 
     async def publish_control_command(self, message: MQTTMessageType) -> None:
         """
@@ -510,6 +518,8 @@ class MQTTServiceContext:
         """
         return self.current_msg
 
+    def get_client(self) -> Client: 
+        return self.control_cmd_pub.mqtt_client
 
 class BLEClientWrapper:
     """
@@ -886,6 +896,11 @@ class BLEServiceContext:
             )
         self._asyncio_loop = None
         self.is_running = False
+
+    def register_home_assistant_handler(
+        self, subscriber: HomeAssistantDataSubscriber
+    ) -> None:
+        self.msg_dispatcher.register_handler(SensorDataMsg, subscriber.handle)
 
     async def start(self) -> None:
         """

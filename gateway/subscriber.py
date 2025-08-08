@@ -3,16 +3,15 @@ from abc import ABC, abstractmethod
 from collections import deque
 from collections.abc import Callable
 from datetime import date, datetime, timedelta
-from typing import Deque, Dict, List, Optional
+from typing import Awaitable, Deque, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from aiorwlock import RWLock
-from numpy import average
 
 from data.tables import BoardData, BoardDataBatchWriter
 
-from .constants import DEVICE_MAX_ID, DEVICE_MIN_ID, SUBSCRIBE_HEARTBEAT_TIMEOUT_SECONDS, TIMEZONE
-from .msg import BLEMessageType, HeartbeatMsg, MessageType, MQTTMessageType, SensorDataMsg, StatusMsg
+from .constants import DEVICE_MAX_ID, DEVICE_MIN_ID, HA_DATA_TOPIC, HA_STATUS_TOPIC, SUBSCRIBE_HEARTBEAT_TIMEOUT_SECONDS, TIMEZONE
+from .msg import BLEMessageType, HAStatusMsg, HeartbeatMsg, MessageType, MQTTMessageType, SensorDataMsg, StatusMsg
 
 
 class GenericSubscriber(ABC):
@@ -219,6 +218,41 @@ class CommandResponseSubscriber(GenericSubscriber):
         """Parse a JSON string into a HeartbeatMsg object."""
         internal_msg = StatusMsg.from_json(json_str)
         # print(f"[CommandResponseSubscriber] Parsed status message: {internal_msg}")
+        return internal_msg
+
+class HomeAssistantDataSubscriber(BLESubscriber):
+    """A subscriber class for handling Home Assistant messages.
+
+    This class is responsible for processing messages related to Home Assistant
+    and providing methods to handle and parse these messages.
+
+    Attributes:
+        None
+
+    Methods:
+        handle(msg: MessageType):
+            Asynchronously handles a message of type MessageType.
+        parse_json(json_str: str) -> MessageType:
+            Parses a JSON string into a MessageType object.
+    """
+
+    # publish_func is an async function that takes a SensorDataMsg and publishes it to Home Assistant
+    def __init__(self, publish_func: Callable[[MQTTMessageType, str], Awaitable[None]]) -> None:
+        self.publish_func = publish_func
+
+    async def handle(self, msg: SensorDataMsg) -> None:
+        """Handles a BLE message by inserting the data into the database."""
+        if not isinstance(msg, SensorDataMsg):
+            raise TypeError("Message must be an instance of BLEMessageType")
+        # print(f"[HomeAssistantDataSubscriber] Received sensor data message: {msg}")
+        await self.publish_func(msg, HA_DATA_TOPIC)
+        # print(f"[HomeAssistantDataSubscriber] Published sensor data message to {HA_DATA_TOPIC}")
+        status_msg = HAStatusMsg(status="normal")
+        await self.publish_func(status_msg, HA_STATUS_TOPIC)
+
+    def parse_bytes(self, msg_bytes: bytearray) -> SensorDataMsg:
+        """Parses a byte array into a SensorDataMsg object."""
+        internal_msg = SensorDataMsg.from_byte_array(msg_bytes)
         return internal_msg
 
 class SensorDataSubscriber(BLESubscriber):

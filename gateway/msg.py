@@ -273,7 +273,10 @@ class HeartbeatMsg(MQTTMessageType):
             raise ValueError(f"Board ID must be between 0 and 6, got {self.board_id}.")
 
     def to_dict(self) -> dict:
-        raise ValueError("HeartbeatMsg does not support to_dict method.")
+        return {
+            "boardID": self.board_id,
+            "seqNo": self.seq_no
+        }
 
     @classmethod
     def from_dict(cls, data: dict):
@@ -286,7 +289,7 @@ class HeartbeatMsg(MQTTMessageType):
         return self.seq_no
 
 @dataclass 
-class SensorDataMsg(BLEMessageType):
+class SensorDataMsg(BLEMessageType, MQTTMessageType):
     """
     Sensor data message from the board.
     This message contains sensor data from the board, including temperature, light intensity,
@@ -370,5 +373,61 @@ class SensorDataMsg(BLEMessageType):
             timestamp=datetime.now().timestamp()
         )
 
-        
+    def to_dict(self) -> dict:
+        return {
+            "boardID": self.board_id,
+            "temperature": self.temperature,
+            "lightIntensity": self.light_intensity,
+            "fansReal": self.fans_real,
+            "humidity": self.humidity,
+            "status": self.status.value,
+            "fansAbs": self.fans_abs,
+            "ledAbs": self.led_abs,
+            "timestamp": self.timestamp
 
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            board_id=data["boardID"],
+            temperature=data["temperature"],
+            light_intensity=data["lightIntensity"],
+            fans_real=data["fansReal"],
+            humidity=data["humidity"],
+            status=Status(data["status"]),
+            fans_abs=data["fansAbs"],
+            led_abs=data["ledAbs"],
+            timestamp=data["timestamp"]
+        )
+
+    def get_message_id(self) -> int:
+        return int(self.timestamp * 1000)
+
+
+
+@dataclass
+class HAStatusMsg(MQTTMessageType):
+    """Home Assistant status message.
+    This message is used to send the status of the board to Home Assistant.
+    It contains the board ID, status, and timestamp.
+    Attributes:
+        status (str): Status of the board (OK, ERROR, WARNING).
+    """
+
+    status: str
+    msg_id: int = 0
+
+    def to_dict(self) -> dict:
+        return {
+            "status": "normal",
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            status=data["status"],
+        )
+
+    def get_message_id(self) -> int:
+        return 0
