@@ -343,12 +343,13 @@ class MQTTServiceContext:
         self.command_status_sub = CommandResponseSubscriber(
             acknowledge_func=self.control_cmd_pub.acknowledge
         )
+        random_id = ''.join(random.choices([*string.ascii_lowercase, *string.ascii_uppercase],
+                                            k=random.randint(5, 10)))
         self.subscribe_client = MqttClientWrapper(
             dispatcher=self.msg_dispatcher,
             mqtt_broker_host=broker_host,
             mqtt_broker_port=broker_port,
-            client_id=f"{client_id}_subscriber_{''.join(random.choices([*string.ascii_lowercase, *string.ascii_uppercase],
-                                                                        k=random.randint(5, 10)))}",
+            client_id=f"{client_id}_subscriber_{random_id}",
         )
         self.subscribe_client.register_topic_handler(
             SUBSCRIBE_HEARTBEAT_TOPIC, HeartbeatSubscriber.parse_json

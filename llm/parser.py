@@ -4,6 +4,7 @@ from langchain_core.messages import BaseMessage
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.language_models import BaseChatModel
+
 # P1 Output Model
 class Reference(BaseModel):
     name: str
@@ -96,7 +97,7 @@ class StrategyDetail(BaseModel):
 class LocalStrategies(BaseModel):
     strategy_playbook: List[StrategyDetail]
 
-
+# Combined Output Model
 class CloudLLMOutput(BaseModel):
     online: OnlineResult
     overall: OverallTarget
@@ -110,45 +111,51 @@ class CloudLLMOutput(BaseModel):
             LocalStrategies: lambda v: v.model_dump(),
         }
 
+def fix_and_validate_json(json_str: BaseMessage, expect_type: Any, fix_model: BaseChatModel, max_attempts: int = 3) -> str:
+    """
+    Fix and validate a JSON string using a provided model.
+    Tries up to three times to fix the JSON, then returns the result.
+    """
+    json_fix_template = """
+    ## Role
+    You are a JSON converter and repair tool.
 
-def fix_and_validate_json(json_str: BaseMessage, expect_type: Any, fix_model: BaseChatModel) -> str:
-        """
-        Fix and validate a JSON string using a provided model.
-        """
-        json_fix_template = """
-        ## Role
-        You are a JSON converter and repair tool.
+    ## Task
+    Your task is to:
+    - Parse the given content (which may contain syntax errors or be only partially structured like JSON)
+    - Validate and convert it into a fully valid JSON that conforms to the following JSON Schema.
+    - Fix formatting issues (e.g. unquoted strings, booleans like True/False, trailing commas).
+    - Coerce compatible values (e.g. numbers in strings → numbers, if schema expects so).
+    - Ensure all required fields are present, setting them to null if they cannot be inferred.
 
-        ## Task
-        Your task is to:
-        - Parse the given content (which may contain syntax errors or be only partially structured like JSON)
-        - Validate and convert it into a fully valid JSON that conforms to the following JSON Schema.
-        - Fix formatting issues (e.g. unquoted strings, booleans like True/False, trailing commas).
-        - Coerce compatible values (e.g. numbers in strings → numbers, if schema expects so).
-        - Ensure all required fields are present, setting them to null if they cannot be inferred.
+    ## JSON Schema (use this as the ground truth structure):
+    {json_schema}
 
-        ## JSON Schema (use this as the ground truth structure):
-        {json_schema}
+    ## Input:
+    {error_json}
+    ---
+    ## Output:
+    Return only the corrected JSON. Do not add comments or explanations. If any required fields are missing and cannot be inferred, set them to null.
 
-        ## Input:
-        {error_json}
-        ---
-        ## Output:
-        Return only the corrected JSON. Do not add comments or explanations. If any required fields are missing and cannot be inferred, set them to null.
-
-        {{corrected_json}}
-        """
-        json_fix_prompt = PromptTemplate.from_template(json_fix_template)
-        json_fix_chain = json_fix_prompt | fix_model | JsonOutputParser()
+    {{corrected_json}}
+    """
+    json_fix_prompt = PromptTemplate.from_template(json_fix_template)
+    json_fix_chain = json_fix_prompt | fix_model | JsonOutputParser()
+    attempts = 0
+    content = json_str.content
+    while attempts < max_attempts:
         try:
             fixed_json = json_fix_chain.invoke(
                 input={
-                    "error_json": json_str.content,
+                    "error_json": content,
                     "json_schema": expect_type.model_json_schema()
                 }
             )
+            # Validate and return as JSON string
             return expect_type.model_validate(fixed_json).model_dump_json()
         except Exception as e:
-            print(f"Error parsing JSON: {e}")
-            print(f"Original content: {json_str.content}")
-            return "{}"  # Return empty JSON if parsing fails
+            attempts += 1
+            content = fixed_json if 'fixed_json' in locals() else content
+    print(f"Error parsing JSON after {attempts} attempts.")
+    print(f"Original content: {json_str.content}")
+    return "{}"

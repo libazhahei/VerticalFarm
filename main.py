@@ -80,8 +80,8 @@ async def main() -> None:
         ansi_cprint(f"Data retriever for device 1: {await retriver.get_moving_average()}")
         ansi_cprint(f"Data retriever for device 1: {await retriver.get_lastest_data()}")
 
-        # while True:
-        #     await asyncio.sleep(1)
+        while True:
+            await asyncio.sleep(1)
         ansi_cprint("Publishing control LED command 0 to device 1...")
         ctrl_msg = ControlMsg(board_id=1, led=255, mode=Mode.ABSOLUTE)
         await mqtt_service_context.publish_control_command(ctrl_msg)
@@ -104,7 +104,7 @@ async def main() -> None:
         # data = await ble_service_context.fetch_data(since=datetime.now() - timedelta(days=1), board_ids=[1])
         # ansi_cprint(f"Fetched data: {data}")
     finally:
-        exit(1)
+        # exit(1)
         await mqtt_service_context.stop()
         await ble_service_context.stop()
         await Tortoise.close_connections()
