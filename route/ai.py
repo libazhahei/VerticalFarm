@@ -42,7 +42,7 @@ def summary_strategy(strategy: StrategyDetail) -> dict:
         "id": strategy.case_id,
         "summary": strategy.case_description,
         "reasoning": strategy.case_quantitative_description,
-        "risk_level": strategy.risk_level,
+        "risk level": strategy.risk_level,
         "control_priority": control_priority,
         "action_priority": action_priority,
         "suggestion_time": datetime.datetime.now().timestamp()
