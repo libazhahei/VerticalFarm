@@ -210,7 +210,7 @@ class CommandResponseSubscriber(GenericSubscriber):
         # print(f"[CommandResponseSubscriber] Received status message: {msg}")
         if not isinstance(msg, StatusMsg):
             raise TypeError("Message must be an instance of StatusMsg")
-        # print(f"[CommandResponseSubscriber] Acknowledging message for board {msg.board_id} with ID {msg.message_id}")
+        print(f"[CommandResponseSubscriber] Acknowledging message for board {msg.board_id} with ID {msg.message_id}")
         self.acknowledge_func(msg.message_id)
 
     @staticmethod

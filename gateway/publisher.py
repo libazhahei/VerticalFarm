@@ -6,7 +6,7 @@ from paho.mqtt.client import MQTT_ERR_SUCCESS, Client as MQTTClient
 
 from gateway.msg import ControlMsg, MQTTMessageType, SensorDataMsg
 
-from .constants import PUBLISH_CTRL_QOS, PUBLISH_ERR_MAX_RETRIES, PUBLISH_RESENT_MAX_RETRIES, PUBLISH_TIMEOUT_SECONDS
+from .constants import ACKNOWLEDGE_ON, PUBLISH_CTRL_QOS, PUBLISH_ERR_MAX_RETRIES, PUBLISH_RESENT_MAX_RETRIES, PUBLISH_TIMEOUT_SECONDS
 
 
 @dataclass
@@ -235,13 +235,14 @@ class ControlCommandPublisher:
                 await asyncio.sleep(self.timeout)  # Wait before retrying
                 continue
             try:
-                await asyncio.wait_for(msg_info.stop_event.wait(), timeout=self.timeout)
+                if ACKNOWLEDGE_ON:
+                    await asyncio.wait_for(msg_info.stop_event.wait(), timeout=self.timeout)
                 return  # Acknowledged, exit the loop
             except TimeoutError:
                 msg_info.retries_left -= 1
                 if msg_info.retries_left == 0:
                     self.fail_msg(message_id)
-                    raise TimeoutError(f"Message with ID {message_id} could not be acknowledged after {self.max_retries} retries.")
+                    # raise TimeoutError(f"Message with ID {message_id} could not be acknowledged after {self.max_retries} retries.")
                 else:
                     print(f"[TIMEOUT] Message {message_id} not acknowledged, retries left: {msg_info.retries_left}")
                     continue
