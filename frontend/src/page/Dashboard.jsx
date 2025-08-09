@@ -54,12 +54,10 @@ export default function DashboardPage () {
   useEffect(() => {
     async function fetchBoards () {
       try {
-        // IDs 1 through 4
         const ids = [1, 2, 3, 4];
         const responses = await Promise.all(
           ids.map(id => sendRequest(`api/board/${id}/status/`, 'GET'))
         );
-        // Timestamp now
         setTimestamp(new Date().toISOString());
         setBoards(responses);
       } catch (err) {
@@ -67,25 +65,28 @@ export default function DashboardPage () {
       }
     }
 
-    // 2) fetch saved plant settings
     async function fetchPlantSettings () {
       try {
         const data = await sendRequest('api/plant/plant-settings', 'GET');
-        // assume API returns { plant_name, growth_stage, notes }
         setPlantInfo({
           name: data.plant_name,
           stage: data.growth_stage,
           remark: data.notes
         });
       } catch (err) {
-        // if backend says "Plant settings not found.", just leave default
         if (!err.message.includes('Plant settings not found')) {
           console.error('Failed to fetch plant settings:', err);
         }
       }
     }
+
     fetchPlantSettings();
-    fetchBoards();
+    fetchBoards(); // initial fetch
+
+    // 🔹 Poll every 0.5 seconds
+    const intervalId = setInterval(fetchBoards, 500);
+
+    return () => clearInterval(intervalId);
   }, []);
 
   return (
