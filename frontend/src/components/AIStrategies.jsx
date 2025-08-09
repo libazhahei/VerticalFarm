@@ -16,7 +16,6 @@ import {
   TableHead,
   TableRow,
   Chip,
-  Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
@@ -33,7 +32,6 @@ import {
   Save as SaveIcon,
   Close as CloseIcon
 } from '@mui/icons-material';
-// import { sendRequest } from '../Request';
 const AIStrategies = ({
   strategies,
   loading,
@@ -79,36 +77,6 @@ const AIStrategies = ({
     }
     handleEditClose();
   };
-
-  // const handleEditSave = async () => {
-  //   // merge the edits into the existing object
-  //   const updated = {
-  //     ...editDialog.strategy,
-  //     summary:        editForm.summary,
-  //     reasoning:      editForm.reasoning,
-  //     // backend expects snake_case:
-  //     risk_level:     editForm['risk level'],
-  //     control_priority: editForm.control_priority,
-  //     action_priority:  editForm.action_priority.split(',').map(s => s.trim()),
-  //     suggestion_time: new Date().toISOString()
-  //   };
-
-  //   try {
-  //     // call the single‐strategy PUT endpoint
-  //     await sendRequest(
-  //       `api/ai/short/strategies/${updated.id}/`,
-  //       'PUT',
-  //       updated
-  //     );
-
-  //     // lift the change into your parent state
-  //     onUpdateStrategy(editDialog.index, updated);
-  //     handleEditClose();
-  //   } catch (err) {
-  //     console.error('Failed to save AI strategy:', err);
-  //     // optionally show a snackbar or alert
-  //   }
-  // };
 
   const handleFormChange = (field, value) => {
     setEditForm(prev => ({
@@ -338,20 +306,7 @@ const AIStrategies = ({
       </CardContent>
 
       {/* Edit Dialog */}
-<Dialog
-  open={editDialog.open}
-  onClose={handleEditClose}
-  maxWidth="md"
-  fullWidth
-  PaperProps={{
-    sx: {
-      borderRadius: 3,
-      boxShadow: materialTheme.shadows[20],
-      backgroundColor: materialTheme.palette.background.default,
-      border: `1px solid ${alpha(materialTheme.palette.divider, 0.1)}`,
-    },
-  }}
->
+
   {/* Header */}
   <DialogTitle
     sx={{
@@ -503,7 +458,6 @@ const AIStrategies = ({
       Save Changes
     </Button>
   </DialogActions>
-</Dialog>
 
     </Card>
   );
