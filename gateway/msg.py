@@ -125,8 +125,8 @@ class ControlMsg(MQTTMessageType):
                 raise ValueError(f"LED value must be between 0 and 255, got {self.led}.")
         if not (0 <= self.temperature <= 100):
             raise ValueError(f"Temperature must be between 0 and 100, got {self.temperature}.")
-        if not (0 <= self.light_intensity <= 100):
-            raise ValueError(f"Light intensity must be between 0 and 100, got {self.light_intensity}.")
+        if not (0 <= self.light_intensity <= 65525):
+            raise ValueError(f"Light intensity must be between 0 and 65525, got {self.light_intensity}.")
         self.message_id = IDGenerator.next_id()
         self.timestamp = datetime.now().timestamp()
 

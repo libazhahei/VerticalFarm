@@ -87,10 +87,10 @@ async def get_all_history(unit: UnitModel, start_from: int) -> list:
     # [{timestamp: "2023-10-01T00:00:00", temperature: 25, humidity: 60, light_intensity: 300}, ...]
     return [
         {
-            "timestamp": data[0].timestamp,
-            "temperature": data[0].temperature if data[0] is not None else None,
-            "humidity": data[1].humidity if data[1] is not None else None,
-            "light_intensity": data[2].light_intensity if data[2] is not None else None
+            "timestamp": data[0]['timestamp'] if data[0] is not None else None,
+            "temperature": data[0]['value'] if data[0] is not None else None,
+            "humidity": data[1]['value'] if data[1] is not None else None,
+            "light_intensity": data[2]['value'] if data[2] is not None else None
         } for data in zip(temp_data, humidity_data, light_data, strict=False) if data[0] is not None or data[1] is not None or data[2] is not None
     ]
 

@@ -1,6 +1,7 @@
 import asyncio
 from datetime import timedelta, datetime
 from enum import Enum
+from math import e
 from typing import Any, Callable, Dict, Optional
 import json
 import uuid
@@ -97,11 +98,13 @@ class DailyPlanner:
         """
         Returns a dictionary with demo data for testing purposes, parsed into models.
         """
-        with open("llm/p1_output.json", "r") as f1:
+        with open("llm/p1_output.json", "r", encoding="utf-8") as f1:
             p1 = OnlineResult.model_validate_json(f1.read())
-        with open("llm/p2_output.json", "r") as f2:
+        
+        with open("llm/p2_output.json", "r", encoding="utf-8") as f2:
             p2 = OverallTarget.model_validate_json(f2.read())
-        with open("llm/p3_output.json", "r") as f3:
+        
+        with open("llm/p3_output.json", "r", encoding="utf-8") as f3:
             p3 = LocalStrategies.model_validate_json(f3.read())
 
         return CloudLLMOutput(

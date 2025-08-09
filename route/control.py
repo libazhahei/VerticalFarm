@@ -47,7 +47,7 @@ async def update_board(board_id: int, data: ControlMsgSchema) -> dict:
         led=0,  # Placeholder for LED control
         temperature=data.temperature,
         light_intensity=data.light_intensity,
-        mode=Mode.ABSOLUTE
+        mode=Mode.RELATIVE
     )
     await context.mqtt_service_context.publish_control_command(ctrl_msg)
 

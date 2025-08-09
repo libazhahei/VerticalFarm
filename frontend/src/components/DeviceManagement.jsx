@@ -101,7 +101,7 @@ export default function DeviceManagement (props) {
               <TableCell sx={{ fontWeight: 'bold' }}>Board ID</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>Last Seen</TableCell>
-              <TableCell sx={{ fontWeight: 'bold' }}>IP Address</TableCell>
+              <TableCell sx={{ fontWeight: 'bold' }}>MAC Address</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
