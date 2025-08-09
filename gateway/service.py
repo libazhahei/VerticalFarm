@@ -1,15 +1,16 @@
 import asyncio
+import random
+import string
 import threading
 import traceback
 from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Optional
-
+from typing import Any, List, Optional, Type
 from bleak import BleakClient, BleakScanner
 from bleak.backends.characteristic import BleakGATTCharacteristic
 from bleak.backends.device import BLEDevice
 from bleak.exc import BleakError
-from paho.mqtt.client import Client, MQTTMessage
+from paho.mqtt.client import Client, MQTTMessage 
 
 from data.tables import BoardData, BoardDataBatchWriter
 
@@ -33,10 +34,12 @@ from .msg import (
     SensorDataMsg,
     StatusMsg,
 )
-from .publisher import ControlCommandPublisher
+from .publisher import ControlCommandPublisher, HomeAssistantDataPublisher
 from .subscriber import (
     CommandResponseSubscriber,
+    CommonDataRetriver,
     HeartbeatSubscriber,
+    HomeAssistantDataSubscriber,
     MessageDispatcher,
     SensorDataSubscriber,
 )
@@ -340,11 +343,13 @@ class MQTTServiceContext:
         self.command_status_sub = CommandResponseSubscriber(
             acknowledge_func=self.control_cmd_pub.acknowledge
         )
+        random_id = ''.join(random.choices([*string.ascii_lowercase, *string.ascii_uppercase],
+                                            k=random.randint(5, 10)))
         self.subscribe_client = MqttClientWrapper(
             dispatcher=self.msg_dispatcher,
             mqtt_broker_host=broker_host,
             mqtt_broker_port=broker_port,
-            client_id=f"{client_id}_subscriber",
+            client_id=f"{client_id}_subscriber_{random_id}",
         )
         self.subscribe_client.register_topic_handler(
             SUBSCRIBE_HEARTBEAT_TOPIC, HeartbeatSubscriber.parse_json
@@ -371,6 +376,7 @@ class MQTTServiceContext:
 
         """
         self.publish_client.connect(*self.borker_info, 60)
+        self.publish_client.loop_start()
         await self.subscribe_client.start()
         await self.msg_dispatcher.start()
         print("MQTT Service Context started.")
@@ -454,10 +460,17 @@ class MQTTServiceContext:
             bool: True if both the subscribe client and publish client are connected,
                   False otherwise.
 
+                  
         """
+        print("subscribe client connected:", self.subscribe_client.is_connected())
+        print("publish client connected:", self.publish_client.is_connected())
         return (
             self.subscribe_client.is_connected() and self.publish_client.is_connected()
         )
+
+
+
+        
 
     async def publish_control_command(self, message: MQTTMessageType) -> None:
         """
@@ -509,6 +522,8 @@ class MQTTServiceContext:
         """
         return self.current_msg
 
+    def get_client(self) -> Client: 
+        return self.control_cmd_pub.mqtt_client
 
 class BLEClientWrapper:
     """
@@ -673,7 +688,7 @@ class BLEClientWrapper:
         while self.is_running:
             try:
                 if client is None:
-                    print(device.address)
+                    # print(device.address)
                     client = BleakClient(
                         device,
                         disconnected_callback=lambda c: print(
@@ -696,7 +711,7 @@ class BLEClientWrapper:
                     try:
                         for char_uuid in self._characteristic_parsers.keys():
                             # char_uuid = get_characteristic_uuid(board_id)
-                            print(char_uuid)
+                            # print(char_uuid)
                             await client.start_notify(char_uuid, self.on_ble_notification)
                         print(f"BLE: Subscribed to {char_uuid} on {device.name}.")
                     except BleakError as e:
@@ -863,6 +878,7 @@ class BLEServiceContext:
     is_running: bool
     _asyncio_loop: asyncio.AbstractEventLoop | None
     batch_writer: BoardDataBatchWriter
+    device_data_retrivers: List[CommonDataRetriver]
 
     def __init__(self, device_id_list: list[int]) -> None:
         self.msg_dispatcher = MessageDispatcher()
@@ -871,13 +887,24 @@ class BLEServiceContext:
         self.ble_client = BLEClientWrapper(
             device_id_lists=device_id_list, dispatcher=self.msg_dispatcher
         )
+        self.device_data_retrivers = [
+            CommonDataRetriver.get_instance(board_id=device_id, time_window=15)
+            for device_id in device_id_list
+        ]
         self.msg_dispatcher.register_handler(SensorDataMsg, self.ble_sub.handle)
+        for retriver in self.device_data_retrivers:
+            self.msg_dispatcher.register_handler(SensorDataMsg, retriver.handle)
         for device_id in device_id_list:
             self.ble_client.register_notification_handler(
                 device_id, self.ble_sub.parse_bytes
             )
         self._asyncio_loop = None
         self.is_running = False
+
+    def register_home_assistant_handler(
+        self, subscriber: HomeAssistantDataSubscriber
+    ) -> None:
+        self.msg_dispatcher.register_handler(SensorDataMsg, subscriber.handle)
 
     async def start(self) -> None:
         """

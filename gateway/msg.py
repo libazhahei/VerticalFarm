@@ -111,16 +111,18 @@ class ControlMsg(MQTTMessageType):
         self.light_intensity = light_intensity
         self.message_id = message_id
         self.timestamp = timestamp
+        self.__post_init__()
 
     def __post_init__(self):
         if self.mode not in (Mode.ABSOLUTE, Mode.RELATIVE):
             raise ValueError(f"Invalid mode: {self.mode}. Must be either ABSOLUTE or RELATIVE.")
         if not (0 <= self.board_id <= 6):
             raise ValueError(f"Board ID must be between 0 and 6, got {self.board_id}.")
-        if not (0 <= self.fan <= 255 and self.mode == Mode.ABSOLUTE):
-            raise ValueError(f"Fan value must be between 0 and 255, got {self.fan}.")
-        if not (0 <= self.led <= 255 and self.mode == Mode.ABSOLUTE ):
-            raise ValueError(f"LED value must be between 0 and 255, got {self.led}.")
+        if self.mode == Mode.ABSOLUTE:
+            if not (0 <= self.fan <= 255):
+                raise ValueError(f"Fan value must be between 0 and 255, got {self.fan}.")
+            if not (0 <= self.led <= 255 ):
+                raise ValueError(f"LED value must be between 0 and 255, got {self.led}.")
         if not (0 <= self.temperature <= 100):
             raise ValueError(f"Temperature must be between 0 and 100, got {self.temperature}.")
         if not (0 <= self.light_intensity <= 100):
@@ -184,6 +186,32 @@ class ControlMsg(MQTTMessageType):
                 f"fan={self.fan}, led={self.led}, temperature={self.temperature}, "
                 f"light_intensity={self.light_intensity}, message_id={self.message_id}, "
                 f"timestamp={self.timestamp})")
+    
+    def add(self, other: 'ControlMsg') -> 'ControlMsg':
+        """Add another ControlMsg to this one, returning a new ControlMsg."""
+        if self.board_id != other.board_id:
+            raise ValueError("Cannot add ControlMsg with different board IDs.")
+        return ControlMsg(
+            board_id=self.board_id,
+            mode=self.mode,
+            fan=self.fan + other.fan,
+            led=self.led + other.led,
+            temperature=(self.temperature + other.temperature) / 2,
+            light_intensity=(self.light_intensity + other.light_intensity) / 2,
+        )
+    
+    def combine(self, other: 'ControlMsg') -> 'ControlMsg':
+        if self.board_id != other.board_id:
+            raise ValueError("Cannot combine ControlMsg with different board IDs.")
+        
+        return ControlMsg(
+            board_id=self.board_id,
+            mode=self.mode,
+            fan=other.fan,
+            led=other.led,
+            temperature=other.temperature,
+            light_intensity=other.light_intensity,
+        )
 
 @dataclass
 class StatusMsg(MQTTMessageType):
@@ -192,25 +220,27 @@ class StatusMsg(MQTTMessageType):
 
     message_id: int
     board_id: int
-    status: int
+    status: str
     timestamp: float
 
-    def __init__(self, board_id: int, status: int, message_id: int = 0, timestamp: float = 0.0):
+    def __init__(self, board_id: int, status: str, message_id: int = 0, timestamp: float = 0.0):
         self.board_id = board_id
         self.status = status
         self.message_id = message_id
         self.timestamp = timestamp
+        # self.__post_init__()
 
 
     def __post_init__(self):
         if not (0 <= self.board_id <= 6):
             raise ValueError(f"Board ID must be between 0 and 6, got {self.board_id}.")
-        if self.status not in (Status.OK, Status.ERROR, Status.WARNING):
+        if self.status not in ("OK", "FAIL"):
             raise ValueError(f"Invalid status: {self.status}. Must be either OK, ERROR, or WARNING.")
         self.message_id = IDGenerator.next_id()
         self.timestamp = datetime.now().timestamp()
 
     def to_dict(self) -> dict:
+        """Convert the message to a dictionary."""
         return {
             "messageID": self.message_id,
             "boardID": self.board_id,
@@ -232,6 +262,7 @@ class StatusMsg(MQTTMessageType):
 
     def parse_json(self, json_str: str):
         return super().parse_json(json_str)
+    
 @dataclass
 class HeartbeatMsg(MQTTMessageType):
     board_id: int
@@ -242,7 +273,10 @@ class HeartbeatMsg(MQTTMessageType):
             raise ValueError(f"Board ID must be between 0 and 6, got {self.board_id}.")
 
     def to_dict(self) -> dict:
-        raise ValueError("HeartbeatMsg does not support to_dict method.")
+        return {
+            "boardID": self.board_id,
+            "seqNo": self.seq_no
+        }
 
     @classmethod
     def from_dict(cls, data: dict):
@@ -255,7 +289,7 @@ class HeartbeatMsg(MQTTMessageType):
         return self.seq_no
 
 @dataclass 
-class SensorDataMsg(BLEMessageType):
+class SensorDataMsg(BLEMessageType, MQTTMessageType):
     """
     Sensor data message from the board.
     This message contains sensor data from the board, including temperature, light intensity,
@@ -300,23 +334,19 @@ class SensorDataMsg(BLEMessageType):
             raise ValueError(f"LED absolute value must be between 0 and 255, got {self.led_abs}.")
         self.timestamp = int(datetime.now().timestamp())
 
+
     def to_byte_array(self) -> bytearray:
-        byte_array = bytearray(20)
+        byte_array = bytearray(12)
         byte_array[0] = self.board_id
-        temp = int(self.temperature * 100)
-        byte_array[1] = temp & 0xFF
-        byte_array[2] = (temp >> 8) & 0xFF
-        byte_array[3] = self.light_intensity & 0xFF
-        byte_array[4] = (self.light_intensity >> 8) & 0xFF
-        byte_array[5] = self.fans_real & 0xFF
-        byte_array[6] = (self.fans_real >> 8) & 0xFF
-        byte_array[7] = int(self.humidity * 100) & 0xFF
-        byte_array[8] = (int(self.humidity * 100) >> 8) & 0xFF
+        temp_raw = int(self.temperature * 100)
+        byte_array[1:3] = struct.pack('>H', temp_raw)
+        byte_array[3:5] = struct.pack('>H', self.light_intensity)
+        byte_array[5:7] = struct.pack('>H', self.fans_real)
+        humidity_raw = int(self.humidity * 100)
+        byte_array[7:9] = struct.pack('>H', humidity_raw)
         byte_array[9] = self.status.value
         byte_array[10] = self.fans_abs
         byte_array[11] = self.led_abs
-        for i in range(12, 20):
-            byte_array[i] = 0
         return byte_array
 
     @classmethod
@@ -343,5 +373,61 @@ class SensorDataMsg(BLEMessageType):
             timestamp=datetime.now().timestamp()
         )
 
-        
+    def to_dict(self) -> dict:
+        return {
+            "boardID": self.board_id,
+            "temperature": self.temperature,
+            "lightIntensity": self.light_intensity,
+            "fansReal": self.fans_real,
+            "humidity": self.humidity,
+            "status": self.status.value,
+            "fansAbs": self.fans_abs,
+            "ledAbs": self.led_abs,
+            "timestamp": self.timestamp
 
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            board_id=data["boardID"],
+            temperature=data["temperature"],
+            light_intensity=data["lightIntensity"],
+            fans_real=data["fansReal"],
+            humidity=data["humidity"],
+            status=Status(data["status"]),
+            fans_abs=data["fansAbs"],
+            led_abs=data["ledAbs"],
+            timestamp=data["timestamp"]
+        )
+
+    def get_message_id(self) -> int:
+        return int(self.timestamp * 1000)
+
+
+
+@dataclass
+class HAStatusMsg(MQTTMessageType):
+    """Home Assistant status message.
+    This message is used to send the status of the board to Home Assistant.
+    It contains the board ID, status, and timestamp.
+    Attributes:
+        status (str): Status of the board (OK, ERROR, WARNING).
+    """
+
+    status: str
+    msg_id: int = 0
+
+    def to_dict(self) -> dict:
+        return {
+            "status": "normal",
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            status=data["status"],
+        )
+
+    def get_message_id(self) -> int:
+        return 0

@@ -4,9 +4,9 @@ from dataclasses import dataclass
 
 from paho.mqtt.client import MQTT_ERR_SUCCESS, Client as MQTTClient
 
-from gateway.msg import ControlMsg, MQTTMessageType
+from gateway.msg import ControlMsg, MQTTMessageType, SensorDataMsg
 
-from .constants import PUBLISH_CTRL_QOS, PUBLISH_ERR_MAX_RETRIES, PUBLISH_RESENT_MAX_RETRIES, PUBLISH_TIMEOUT_SECONDS
+from .constants import ACKNOWLEDGE_ON, PUBLISH_CTRL_QOS, PUBLISH_ERR_MAX_RETRIES, PUBLISH_RESENT_MAX_RETRIES, PUBLISH_TIMEOUT_SECONDS
 
 
 @dataclass
@@ -184,6 +184,7 @@ class ControlCommandPublisher:
         """
         for attempt in range(PUBLISH_ERR_MAX_RETRIES):
             try:
+                print(f"[PUBLISHING] Attempt {attempt+1} for message {message.get_message_id()} to topic {topic}")
                 info = self.mqtt_client.publish(topic, message.to_json(), qos= PUBLISH_CTRL_QOS)
                 if info.rc == MQTT_ERR_SUCCESS:
                     return True
@@ -222,7 +223,7 @@ class ControlCommandPublisher:
         msg_info = self.msgs[message_id]
 
         while msg_info.retries_left > 0:
-            print(await self.is_alive_func(msg_info.payload.board_id))
+            # print(await self.is_alive_func(msg_info.payload.board_id))
             if self.is_alive_func is None or not await self.is_alive_func(msg_info.payload.board_id):
                 print(f"[DEVICE NOT ALIVE] Cannot publish message {message_id}, device {msg_info.payload.board_id} is not alive.")
                 self.fail_msg(message_id)
@@ -234,14 +235,56 @@ class ControlCommandPublisher:
                 await asyncio.sleep(self.timeout)  # Wait before retrying
                 continue
             try:
-                await asyncio.wait_for(msg_info.stop_event.wait(), timeout=self.timeout)
+                if ACKNOWLEDGE_ON:
+                    await asyncio.wait_for(msg_info.stop_event.wait(), timeout=self.timeout)
                 return  # Acknowledged, exit the loop
             except TimeoutError:
                 msg_info.retries_left -= 1
                 if msg_info.retries_left == 0:
                     self.fail_msg(message_id)
-                    raise TimeoutError(f"Message with ID {message_id} could not be acknowledged after {self.max_retries} retries.")
+                    # raise TimeoutError(f"Message with ID {message_id} could not be acknowledged after {self.max_retries} retries.")
                 else:
                     print(f"[TIMEOUT] Message {message_id} not acknowledged, retries left: {msg_info.retries_left}")
                     continue
 
+
+class HomeAssistantDataPublisher:
+    """A class for publishing Home Assistant data to an MQTT broker.
+
+    Attributes:
+        mqtt_client (MQTTClient): The MQTT client used for publishing messages.
+        max_retries (int): Maximum number of retries for publishing a message.
+        timeout (int): Timeout duration (in seconds) for waiting for message acknowledgment.
+        msgs (Dict[int, QueueMessage]): A dictionary storing messages being published, keyed by their message IDs.
+
+    Methods:
+        __init__(mqtt_client, max_retries, timeout):
+            Initializes the HomeAssistantDataPublisher instance with the given MQTT client, maximum retries, and timeout.
+        add_msg(message, topic):
+            Adds a message to the publishing queue and starts the publishing process asynchronously.
+    """
+
+    def __init__(self, existing_publish: MQTTClient, max_retries: int = PUBLISH_RESENT_MAX_RETRIES,
+                 timeout: float = PUBLISH_TIMEOUT_SECONDS) -> None:
+        self.mqtt_client = existing_publish
+        self.max_retries = max_retries
+        self.timeout = timeout
+        self.msgs = {}
+
+    async def publish_message(self, message: MQTTMessageType, topic: str) -> None:
+        """Publishes a message to the specified MQTT topic.
+
+        Args:
+            message (MQTTMessageType): The message to be published.
+            topic (str): The MQTT topic to which the message will be published.
+
+        Raises:
+            TypeError: If the provided `message` is not an instance of `ControlMsg`.
+
+        Notes:
+            - This method does not handle retries or acknowledgments; it simply publishes the message.
+        """
+        try:
+            self.mqtt_client.publish(topic, message.to_json(), qos=PUBLISH_CTRL_QOS)
+        except Exception as e:
+            print(f"[PUBLISHING] Error: {e}")

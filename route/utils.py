@@ -11,13 +11,13 @@ from zoneinfo import ZoneInfo
 from bleak.backends.characteristic import BleakGATTCharacteristic
 
 from gateway.constants import TIMEZONE, get_characteristic_uuid
-from gateway.msg import MQTTMessageType, SensorDataMsg, SensorStatus
+from gateway.msg import MQTTMessageType, SensorDataMsg, Status
 from gateway.service import BLEServiceContext, MQTTServiceContext
 
-FAKE_LOWER_COMPUTER_COMMUNICATION = False  # Set to True for testing purposes
+FAKE_LOWER_COMPUTER_COMMUNICATION = True  # Set to True for testing purposes
 
 global exit_fake_loop 
-exit_fake_loop = False
+exit_fake_loop = True
 
 class RunningMode(int, Enum):
     """Enum to represent different running modes of the application."""
@@ -132,7 +132,7 @@ async def insert_one_fake_data(
         light_intensity=light_intensity,
         fans_real=random.randint(0, 100),
         humidity=humidity,
-        status=SensorStatus.IDLE,
+        status=Status.OK,
         fans_abs=random.randint(0, 255),
         led_abs=random.randint(0, 255),
         timestamp=(datetime.now(tz=ZoneInfo(TIMEZONE)) - timedelta(seconds=1)).timestamp()
@@ -171,7 +171,7 @@ async def generate_fake_data(callable_func: Callable, seed: int, board_id: int, 
                     light_intensity=light_intensity,
                     fans_real=random.randint(0, 100),
                     humidity=humidity,
-                    status=SensorStatus.IDLE,
+                    status=Status.OK,
                     fans_abs=random.randint(0, 255),
                     led_abs=random.randint(0, 255),
                     timestamp=(datetime.now(tz=ZoneInfo(TIMEZONE)) - timedelta(seconds=1)).timestamp()

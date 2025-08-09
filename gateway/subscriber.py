@@ -1,15 +1,17 @@
 import asyncio
 from abc import ABC, abstractmethod
+from collections import deque
 from collections.abc import Callable
-from datetime import datetime
+from datetime import date, datetime, timedelta
+from typing import Awaitable, Deque, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from aiorwlock import RWLock
 
 from data.tables import BoardData, BoardDataBatchWriter
 
-from .constants import DEVICE_MAX_ID, DEVICE_MIN_ID, SUBSCRIBE_HEARTBEAT_TIMEOUT_SECONDS, TIMEZONE
-from .msg import BLEMessageType, HeartbeatMsg, MessageType, MQTTMessageType, SensorDataMsg, StatusMsg
+from .constants import DEVICE_MAX_ID, DEVICE_MIN_ID, HA_DATA_TOPIC, HA_STATUS_TOPIC, SUBSCRIBE_HEARTBEAT_TIMEOUT_SECONDS, TIMEZONE
+from .msg import BLEMessageType, HAStatusMsg, HeartbeatMsg, MessageType, MQTTMessageType, SensorDataMsg, StatusMsg
 
 
 class GenericSubscriber(ABC):
@@ -118,7 +120,7 @@ class HeartbeatSubscriber(GenericSubscriber):
 
         """
         async with self.lock.writer_lock:
-            print(f"Heartbeat received for board {msg.board_id} with seq_no {msg.seq_no}")
+            # print(f"Heartbeat received for board {msg.board_id} with seq_no {msg.seq_no}")
             # if self.alive_devices[msg.board_id][0] != -1:
             self.alive_devices[msg.board_id] = (msg.seq_no, datetime.now().timestamp())
 
@@ -140,14 +142,14 @@ class HeartbeatSubscriber(GenericSubscriber):
               for considering a device as alive.
 
         """
-        print(f"Checking if board {board_id} is alive.")
-        print(self.alive_devices)
+        # print(f"Checking if board {board_id} is alive.")
+        # print(self.alive_devices)
         if DEVICE_MIN_ID <= board_id <= DEVICE_MAX_ID:
             async with self.lock.reader_lock:
                 deq_no, last_seen = self.alive_devices[board_id]
             if deq_no != -1:
                 current_time = datetime.now().timestamp()
-                print(f"Current time: {current_time}, Last seen: {last_seen}")
+                # print(f"Current time: {current_time}, Last seen: {last_seen}")
                 if abs(current_time - last_seen) < SUBSCRIBE_HEARTBEAT_TIMEOUT_SECONDS:
                     return True
         async with self.lock.writer_lock:
@@ -205,14 +207,52 @@ class CommandResponseSubscriber(GenericSubscriber):
 
     async def handle(self, msg: StatusMsg) -> None:
         """Handles a status message by acknowledging it based on the board ID."""
+        # print(f"[CommandResponseSubscriber] Received status message: {msg}")
         if not isinstance(msg, StatusMsg):
             raise TypeError("Message must be an instance of StatusMsg")
-        self.acknowledge_func(msg.board_id)
+        print(f"[CommandResponseSubscriber] Acknowledging message for board {msg.board_id} with ID {msg.message_id}")
+        self.acknowledge_func(msg.message_id)
 
     @staticmethod
     def parse_json(json_str: str) -> StatusMsg:
         """Parse a JSON string into a HeartbeatMsg object."""
         internal_msg = StatusMsg.from_json(json_str)
+        # print(f"[CommandResponseSubscriber] Parsed status message: {internal_msg}")
+        return internal_msg
+
+class HomeAssistantDataSubscriber(BLESubscriber):
+    """A subscriber class for handling Home Assistant messages.
+
+    This class is responsible for processing messages related to Home Assistant
+    and providing methods to handle and parse these messages.
+
+    Attributes:
+        None
+
+    Methods:
+        handle(msg: MessageType):
+            Asynchronously handles a message of type MessageType.
+        parse_json(json_str: str) -> MessageType:
+            Parses a JSON string into a MessageType object.
+    """
+
+    # publish_func is an async function that takes a SensorDataMsg and publishes it to Home Assistant
+    def __init__(self, publish_func: Callable[[MQTTMessageType, str], Awaitable[None]]) -> None:
+        self.publish_func = publish_func
+
+    async def handle(self, msg: SensorDataMsg) -> None:
+        """Handles a BLE message by inserting the data into the database."""
+        if not isinstance(msg, SensorDataMsg):
+            raise TypeError("Message must be an instance of BLEMessageType")
+        # print(f"[HomeAssistantDataSubscriber] Received sensor data message: {msg}")
+        await self.publish_func(msg, HA_DATA_TOPIC)
+        # print(f"[HomeAssistantDataSubscriber] Published sensor data message to {HA_DATA_TOPIC}")
+        status_msg = HAStatusMsg(status="normal")
+        await self.publish_func(status_msg, HA_STATUS_TOPIC)
+
+    def parse_bytes(self, msg_bytes: bytearray) -> SensorDataMsg:
+        """Parses a byte array into a SensorDataMsg object."""
+        internal_msg = SensorDataMsg.from_byte_array(msg_bytes)
         return internal_msg
 
 class SensorDataSubscriber(BLESubscriber):
@@ -251,6 +291,162 @@ class SensorDataSubscriber(BLESubscriber):
         """Parses a byte array into a BLEMessageType object."""
         internal_msg = SensorDataMsg.from_byte_array(msg_bytes)
         return internal_msg
+    
+class CommonDataRetriver(BLESubscriber):
+    """A subscriber class responsible for retrieving common data from BLE messages.
+
+    This class is designed to handle BLE messages that contain common data such as
+    moving average temperature, light intensity, and humidity, and also moving average 
+    fan speed. It provides methods to handle these messages and parse them from byte arrays.
+    """
+    time_window: int
+    num_samples: int
+    sum_temperature: float
+    sum_light_intensity: float
+    sum_humidity: float
+    sum_fan_speed: float
+    data_queue: Deque[SensorDataMsg]
+    timeout: timedelta
+    lock: RWLock
+
+    latest_temperature: float = 0.0
+    latest_light_intensity: float = 0.0
+    latest_humidity: float = 0.0
+    latest_fan_speed: float = 0.0
+    latest_timestamp: Optional[datetime] = None
+    latest_led: int = 0
+    latest_fan: int = 0
+
+    retrivers: Dict[int, "CommonDataRetriver"] = {}
+
+    def __init__(self, time_window: int, timeout: timedelta, board_id: int) -> None:
+        """Initializes the CommonDataRetriver with a time window."""
+        self.time_window = time_window
+        self.timeout = timeout
+        self.num_samples = 0
+        self.sum_temperature = 0.0
+        self.sum_light_intensity = 0.0
+        self.sum_humidity = 0.0
+        self.sum_fan_speed = 0.0
+        self.data_queue = deque(maxlen=time_window)
+        self.board_id = board_id
+        self.lock = RWLock()
+        
+
+    @classmethod
+    def get_instance(cls, board_id: int, time_window: int = 30, timeout: timedelta = timedelta(seconds=20), ) -> "CommonDataRetriver":
+        """Returns a singleton instance of CommonDataRetriver."""
+        if cls.retrivers is None:
+            cls.retrivers = {}
+        if board_id not in cls.retrivers:
+            cls.retrivers[board_id] = CommonDataRetriver(time_window, timeout, board_id)
+        return cls.retrivers[board_id]
+
+    async def handle(self, msg: SensorDataMsg) -> None:
+        """Handles a BLE message by updating the moving averages and time queue."""
+        if not isinstance(msg, SensorDataMsg):
+            raise TypeError("Message must be an instance of SensorDataMsg")
+        if msg.board_id == self.board_id:
+            await self.update_averages(msg)
+            self.latest_temperature = msg.temperature
+            self.latest_light_intensity = msg.light_intensity
+            self.latest_humidity = msg.humidity
+            self.latest_fan_speed = msg.fans_real
+            self.latest_timestamp = datetime.now(tz=ZoneInfo(TIMEZONE))
+            self.latest_led = msg.led_abs
+            self.latest_fan = msg.fans_abs
+            
+
+    def parse_bytes(self, msg_bytes: bytearray) -> SensorDataMsg:
+        """Parses a byte array into a SensorDataMsg object."""
+        internal_msg = SensorDataMsg.from_byte_array(msg_bytes)
+        return internal_msg
+    
+    async def update_averages(self, msg: SensorDataMsg) -> None:
+        """Updates the moving averages based on the received sensor data message.
+
+        Args:
+            msg (SensorDataMsg): The sensor data message containing temperature, light intensity, 
+                                 humidity, and fan speed.
+
+        This method maintains a moving average of the temperature, light intensity, humidity, 
+        and fan speed over a specified time window. It updates the averages and manages the 
+        time queue to ensure that only the most recent samples within the time window are considered.
+        """
+        # Use double pointer to calculate moving average.
+        # remove old samples that are outside the time window
+        current_time = datetime.now(tz=ZoneInfo(TIMEZONE)).timestamp()
+        async with self.lock.writer_lock:
+            while self.data_queue and (current_time - self.data_queue[0].timestamp) > self.timeout.total_seconds():
+                old_msg = self.data_queue.popleft()
+                self.num_samples -= 1
+                self.sum_temperature -= old_msg.temperature
+                self.sum_light_intensity -= old_msg.light_intensity
+                self.sum_humidity -= old_msg.humidity
+                self.sum_fan_speed -= old_msg.fans_real
+                if self.num_samples == 0:
+                    self.sum_temperature = 0.0
+                    self.sum_light_intensity = 0.0
+                    self.sum_humidity = 0.0
+                    self.sum_fan_speed = 0.0
+                    return
+            # add new sample
+            if len(self.data_queue) >= self.time_window:
+                old_msg = self.data_queue.popleft()
+                self.sum_temperature -= old_msg.temperature
+                self.sum_light_intensity -= old_msg.light_intensity
+                self.sum_humidity -= old_msg.humidity
+                self.sum_fan_speed -= old_msg.fans_real
+            else:
+                self.num_samples += 1
+            self.data_queue.append(msg)
+            # update averages
+            self.sum_temperature += msg.temperature
+            self.sum_light_intensity += msg.light_intensity
+            self.sum_humidity += msg.humidity
+            self.sum_fan_speed += msg.fans_real
+
+    async def get_moving_average(self) -> dict[str, float]:
+        """Calculates and returns the moving averages of temperature, light intensity, humidity, and fan speed.
+
+        Returns:
+            dict[str, float]: A dictionary containing the moving averages of temperature, light intensity,
+                              humidity, and fan speed. If no samples are available, all values will be 0.0.
+        """
+        if self.num_samples == 0:
+            return {
+                "temperature": 0.0,
+                "light_intensity": 0.0,
+                "humidity": 0.0,
+                "fans_real": 0.0,
+                "num_samples": 0
+            }
+        async with self.lock.reader_lock:
+            num_sample = self.num_samples
+            return {
+                "temperature": self.sum_temperature / num_sample,
+                "light_intensity": self.sum_light_intensity / num_sample,
+                "humidity": self.sum_humidity / num_sample,
+                "fans_real": self.sum_fan_speed / num_sample,
+                "num_samples": num_sample
+            }
+
+    async def get_lastest_data(self) -> dict[str, float]:
+        """Returns the latest sensor data values.
+
+        Returns:
+            dict[str, float]: A dictionary containing the latest temperature, light intensity,
+                              humidity, fan speed, and LED value. If no data is available, all values will be 0.0.
+        """
+        async with self.lock.reader_lock:
+            return {
+                "temperature": self.latest_temperature,
+                "light_intensity": self.latest_light_intensity,
+                "humidity": self.latest_humidity,
+                "fans_real": self.latest_fan_speed,
+                "led_abs": self.latest_led,
+                "timestamp": self.latest_timestamp.timestamp() if self.latest_timestamp else 0.0
+            }
 
 class MessageDispatcher:
     """A class responsible for dispatching messages to registered handlers asynchronously.
@@ -305,6 +501,7 @@ class MessageDispatcher:
         if msg_type not in self.subscribers:
             self.subscribers[msg_type] = []
         self.subscribers[msg_type].append(subscriber_handle)
+        # print(f"Handler registered for message type {msg_type}. Total handlers: {len(self.subscribers[msg_type])}")
 
     async def dispatch(self, msg: MessageType) -> None:
         """Dispatches a message to the appropriate handlers based on its type.

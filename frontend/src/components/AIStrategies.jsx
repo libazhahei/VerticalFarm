@@ -306,7 +306,6 @@ const AIStrategies = ({
       </CardContent>
 
       {/* Edit Dialog */}
-
   {/* Header */}
   <DialogTitle
     sx={{

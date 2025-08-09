@@ -15,6 +15,7 @@ exclude = [
     "docs",
     "build",
     "dist",
+    "ai_demo.py"
 ]
 
 # 2. 启用所有推荐的规则，并添加一些额外的规则来检查类型和命名

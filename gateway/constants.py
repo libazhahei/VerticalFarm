@@ -28,6 +28,12 @@ PUBLISH_ERR_MAX_RETRIES = 3
 PUBLISH_CTRL_MSG_TOPIC = "cropwaifu/control"
 PUBLISH_CTRL_QOS = 0
 
+<<<<<<< HEAD
+=======
+
+ACKNOWLEDGE_ON = True
+
+>>>>>>> backend
 # BLE
 SERVICE_UUID_PREFIX = "11451411-4514-1145-1411-"
 CHARACTERISTIC_UUID_PREFIX = "19198101-9198-1019-1981-"
@@ -40,24 +46,43 @@ RECONNECTION_DELAY_SECONDS = 5
 
 TIMEZONE = "Australia/Sydney"  # Default timezone for the application
 
+<<<<<<< HEAD
 
 def get_service_uuid(board_id: int) -> str:
     """Generates a service UUID based on the board ID."""
     print(f'Board ID = {board_id}')
+=======
+# Home Assistant
+HA_STATUS_TOPIC = "homeassistant/status"
+HA_DATA_TOPIC = "homeassistant/data"
+
+
+def get_service_uuid(board_id: int) -> str:
+    """Generates a service UUID based on the board ID."""
+    # print(f'Board ID = {board_id}')
+>>>>>>> backend
     if not (DEVICE_MIN_ID <= board_id <= DEVICE_MAX_ID):
         raise ValueError(f"Board ID must be between {DEVICE_MIN_ID} and {DEVICE_MAX_ID}, got {board_id}.")
     return f"{SERVICE_UUID_PREFIX}{board_id:012x}"
 
 def get_characteristic_uuid(board_id: int) -> str:
     """Generates a characteristic UUID based on the board ID."""
+<<<<<<< HEAD
     print(f'Board ID = {board_id}')
+=======
+    # print(f'Board ID = {board_id}')
+>>>>>>> backend
     if not (DEVICE_MIN_ID <= board_id <= DEVICE_MAX_ID):
         raise ValueError(f"Board ID must be between {DEVICE_MIN_ID} and {DEVICE_MAX_ID}, got {board_id}.")
     return f"{CHARACTERISTIC_UUID_PREFIX}{board_id:012x}"
 
 def get_device_name(board_id: int) -> str:
     """Generates a device name based on the board ID."""
+<<<<<<< HEAD
     print(f'Board ID = {board_id}')
+=======
+    # print(f'Board ID = {board_id}')
+>>>>>>> backend
     if not (DEVICE_MIN_ID <= board_id <= DEVICE_MAX_ID):
         raise ValueError(f"Board ID must be between {DEVICE_MIN_ID} and {DEVICE_MAX_ID}, got {board_id}.")
     return f"{DEVICE_PREFIX}{board_id}"
