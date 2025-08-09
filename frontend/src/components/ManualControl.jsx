@@ -4,7 +4,6 @@ import {
   Card,
   Typography,
   Box,
-  Switch,
   Slider,
   Button,
   Divider,
@@ -25,7 +24,6 @@ const GlassCard = styled(Card)(({ theme }) => ({
 }));
 
 export default function ManualControl (props) {
-  const [runningMode, setRunningMode] = useState(0); // 0 = auto, 1 = manual
   const [temperature, setTemperature] = useState(25);
   const [humidity, setHumidity] = useState(60);
   const [lightIntensity, setLightIntensity] = useState(500);
@@ -36,53 +34,11 @@ export default function ManualControl (props) {
     message: ''
   });
 
-  const isManual = runningMode === 1;
-
-  // NEW: toggle handler that sends to backend when switching Manual -> Auto
-  const handleModeToggle = async () => {
-    const wasManual = runningMode === 1;
-    const nextMode = wasManual ? 0 : 1;
-
-    // Optimistically update UI
-    setRunningMode(nextMode);
-
-    // If moving to Auto, notify backend immediately
-    if (wasManual) {
-      setLoading(true);
-      try {
-        // If your backend expects only the mode:
-        const payload = { running_mode: 0 };
-
-        // If it expects full state even when going auto, use:
-        // const payload = { running_mode: 0, temperature, humidity, light_intensity: lightIntensity };
-
-        const res = await sendRequest('api/control/1', 'POST', payload);
-        console.log('Switched to Auto response:', res);
-
-        setSnackbar({
-          open: true,
-          severity: 'success',
-          message: 'Switched to Auto mode'
-        });
-      } catch (err) {
-        // Revert UI if call fails
-        setRunningMode(1);
-        setSnackbar({
-          open: true,
-          severity: 'error',
-          message: err.message || 'Failed to switch to Auto'
-        });
-      } finally {
-        setLoading(false);
-      }
-    }
-  };
-
   const handleConfirm = async () => {
     setLoading(true);
     try {
       const payload = {
-        running_mode: runningMode, // 0 or 1
+        running_mode: 1, // manual mode only
         temperature,
         humidity,
         light_intensity: lightIntensity
@@ -122,26 +78,6 @@ export default function ManualControl (props) {
         {/* Header */}
         <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
           <Typography variant="subtitle1">Manual Control</Typography>
-          <Box display="flex" alignItems="center">
-            <Typography
-              variant="body2"
-              color={runningMode === 0 ? 'text.primary' : 'text.secondary'}
-            >
-              Auto
-            </Typography>
-            <Switch
-              size="small"
-              checked={isManual}
-              onChange={handleModeToggle}
-              disabled={loading}
-            />
-            <Typography
-              variant="body2"
-              color={isManual ? 'text.primary' : 'text.secondary'}
-            >
-              Manual
-            </Typography>
-          </Box>
         </Box>
 
         {/* Temperature */}
@@ -153,7 +89,6 @@ export default function ManualControl (props) {
             valueLabelDisplay="auto"
             min={0}
             max={40}
-            disabled={!isManual}
           />
         </Box>
 
@@ -166,7 +101,6 @@ export default function ManualControl (props) {
             valueLabelDisplay="auto"
             min={0}
             max={100}
-            disabled={!isManual}
           />
         </Box>
 
@@ -178,8 +112,7 @@ export default function ManualControl (props) {
             onChange={(e, v) => setLightIntensity(v)}
             valueLabelDisplay="auto"
             min={0}
-            max={4000}
-            disabled={!isManual}
+            max={2000}
           />
         </Box>
 
@@ -190,7 +123,7 @@ export default function ManualControl (props) {
           variant="contained"
           fullWidth
           onClick={handleConfirm}
-          disabled={!isManual || loading}
+          disabled={loading}
         >
           {loading
             ? <CircularProgress size={24} color="inherit" />
