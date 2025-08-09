@@ -112,7 +112,7 @@ export default function ManualControl (props) {
             onChange={(e, v) => setLightIntensity(v)}
             valueLabelDisplay="auto"
             min={0}
-            max={2000}
+            max={4000}
           />
         </Box>
 
