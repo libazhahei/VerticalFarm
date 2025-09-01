@@ -313,7 +313,8 @@ class MQTTServiceContext:
     current_msg: Optional[ControlMsg]
 
     def __init__(
-        self, broker_host: str, broker_port: int = 1883, client_id: str = "mqtt_client"
+        self, broker_host: str, broker_port: int = 1883, client_id: str = "mqtt_client",
+        ha_client_host: str = "192.168.8.169", ha_client_port: int = 5001
     ) -> None:
         """
         Initializes the service with MQTT clients, message dispatchers, and subscribers.
@@ -335,8 +336,10 @@ class MQTTServiceContext:
         """
         self.heartbeat_sub = HeartbeatSubscriber()
         self.msg_dispatcher = MessageDispatcher()
-        self.publish_client = Client(client_id=f"{client_id}_publisher")
+        self.publish_client = Client(client_id=f"{client_id}_publisher_{random.randint(1000, 9999)}")
+        self.ha_publisher = Client(client_id=f"ha_publisher_{random.randint(1000, 9999)}")
         self.borker_info = (broker_host, broker_port)
+        self.ha_borker_info = (ha_client_host, ha_client_port)
         self.control_cmd_pub = ControlCommandPublisher(
             mqtt_client=self.publish_client, is_alive_func=self.heartbeat_sub.is_alive
         )
@@ -376,7 +379,11 @@ class MQTTServiceContext:
 
         """
         self.publish_client.connect(*self.borker_info, 60)
+        self.ha_publisher.connect(*self.ha_borker_info, 60)
         self.publish_client.loop_start()
+        self.ha_publisher.loop_start()
+        threading.Thread(target=self.publish_client.loop_forever, daemon=True).start()
+        threading.Thread(target=self.ha_publisher.loop_forever, daemon=True).start()
         await self.subscribe_client.start()
         await self.msg_dispatcher.start()
         print("MQTT Service Context started.")
@@ -523,7 +530,7 @@ class MQTTServiceContext:
         return self.current_msg
 
     def get_client(self) -> Client: 
-        return self.control_cmd_pub.mqtt_client
+        return self.ha_publisher
 
 class BLEClientWrapper:
     """
@@ -709,10 +716,8 @@ class BLEClientWrapper:
                     """
 
                     try:
-                        for char_uuid in self._characteristic_parsers.keys():
-                            # char_uuid = get_characteristic_uuid(board_id)
-                            # print(char_uuid)
-                            await client.start_notify(char_uuid, self.on_ble_notification)
+                        char_uuid = get_characteristic_uuid(board_id)
+                        await client.start_notify(char_uuid, self.on_ble_notification)
                         print(f"BLE: Subscribed to {char_uuid} on {device.name}.")
                     except BleakError as e:
                         print(

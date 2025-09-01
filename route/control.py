@@ -42,7 +42,16 @@ async def update_board(board_id: int, data: ControlMsgSchema) -> dict:
         return { "mode": str(context.running_mode) }
     print(f"Switching to manual mode with data: {data}")
     ctrl_msg = ControlMsg(
-        board_id=board_id,
+        board_id=1,
+        fan=0,  # Placeholder for fan control
+        led=0,  # Placeholder for LED control
+        temperature=data.temperature,
+        light_intensity=data.light_intensity,
+        mode=Mode.RELATIVE
+    )
+    await context.mqtt_service_context.publish_control_command(ctrl_msg)
+    ctrl_msg = ControlMsg(
+        board_id=3,
         fan=0,  # Placeholder for fan control
         led=0,  # Placeholder for LED control
         temperature=data.temperature,

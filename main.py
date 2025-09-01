@@ -57,7 +57,7 @@ def ansi_cprint(text, fg="green", bg=None, style="normal", end="\n"):
 
 async def main() -> None:
     """Main function to demonstrate the usage of MQTTServiceContext and BLEServiceContext."""
-    mqtt_service_context = MQTTServiceContext(broker_host="localhost", broker_port=5001, client_id="test_client")
+    mqtt_service_context = MQTTServiceContext(broker_host="10.255.0.1", broker_port=5001, client_id="test_client")
     await mqtt_service_context.start()
     await init_schema()
     client = mqtt_service_context.get_client()

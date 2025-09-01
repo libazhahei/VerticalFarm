@@ -244,9 +244,7 @@ class HomeAssistantDataSubscriber(BLESubscriber):
         """Handles a BLE message by inserting the data into the database."""
         if not isinstance(msg, SensorDataMsg):
             raise TypeError("Message must be an instance of BLEMessageType")
-        # print(f"[HomeAssistantDataSubscriber] Received sensor data message: {msg}")
         await self.publish_func(msg, HA_DATA_TOPIC)
-        # print(f"[HomeAssistantDataSubscriber] Published sensor data message to {HA_DATA_TOPIC}")
         status_msg = HAStatusMsg(status="normal")
         await self.publish_func(status_msg, HA_STATUS_TOPIC)
 

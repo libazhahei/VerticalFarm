@@ -1,6 +1,7 @@
 import logging
 import os
 from contextlib import asynccontextmanager
+import random
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -11,7 +12,9 @@ from uvicorn import run
 
 from data.config import init_schema
 from data.tables import BoardDataBatchWriter
+from gateway.publisher import HomeAssistantDataPublisher
 from gateway.service import BLEServiceContext, MQTTServiceContext
+from gateway.subscriber import HomeAssistantDataSubscriber
 from llm.cloud import ChainPart1UserInput, CloudLLMCache, DailyPlanner
 from route.ai import ai_router
 from route.control import control_router
@@ -19,6 +22,8 @@ from route.history import history_router
 from route.others import other_router
 from route.plant import plant_router
 from route.utils import GlobalContext, fake_lower_computer_services
+from paho.mqtt.client import Client, MQTTMessage 
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -26,10 +31,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-MQTT_BROKER_HOST = "localhost"
+MQTT_BROKER_HOST = "10.255.0.1"
 MQTT_BROKER_PORT = 5001
 MQTT_CLIENT_ID = "test_client"
-BLE_DEVICES = [1]  # Example BLE devices
+BLE_DEVICES = [1, 3]  # Example BLE devices
 
 
 # async def init_lower_computer_services() -> tuple[MQTTServiceContext, BLEServiceContext]:
@@ -60,7 +65,12 @@ async def lifespan(app: FastAPI) -> Any:
         client_id=MQTT_CLIENT_ID
     )
     ble_service = BLEServiceContext(BLE_DEVICES)
-    mqtt_service, ble_service = await fake_lower_computer_services(mqtt_service, ble_service, BLE_DEVICES)
+    await mqtt_service.start()
+    client = mqtt_service.get_client()
+    home_ass_pub = HomeAssistantDataPublisher(client)
+    home_ass_sub = HomeAssistantDataSubscriber(home_ass_pub.publish_message)
+    ble_service.register_home_assistant_handler(home_ass_sub)
+    await ble_service.start()
     GlobalContext.get_instance(mqtt_service_context=mqtt_service, ble_service_context=ble_service)
 
     yield
@@ -101,12 +111,12 @@ async def get_devices() -> list:
     ble_latest = await BoardDataBatchWriter.get_instance().fetch_latest(devices)
 
     result = []
-    for ble_data in ble_latest:
+    for ble_data,mac in zip(ble_latest, ["30:AE:0D:1D:8C:51", "30:AE:56:38:4C:B7"]):
         if ble_data is not None:
             result.append({
                 "board_id": ble_data.board_id,
                 "last_seen": ble_data.timestamp.timestamp() if ble_data.timestamp else None,
-                "ip_address": "127.0.0.1",
+                "ip_address": mac,
                 "status": "online" if ble_data.board_id in devices else "offline",
             })
     return result
@@ -119,7 +129,7 @@ async def global_exception_handler(request: Request, exc: Exception)-> dict:
 
 
 if __name__ == "__main__":
-    os.environ["DATABASE_URL"] = "./test.db"
+    # os.environ["DATABASE_URL"] = "./test.db"
 
     print("Starting FastAPI application...")
 

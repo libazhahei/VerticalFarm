@@ -1,5 +1,5 @@
 // src/components/TemperatureGauge.jsx
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Box, Typography, Card } from '@mui/material';
 import { styled } from '@mui/material/styles';
 
@@ -12,68 +12,12 @@ const GlassCard = styled(Card)(({ theme }) => ({
   '&:hover': { transform: 'scale(1.02)' }
 }));
 
-const DEFAULT_WEATHER_API_KEY = 'a1ea5d212b5f49e7841125640251607';
-
 export default function TemperatureGauge ({
   city = 'Sydney,AU',
-  apiKey = DEFAULT_WEATHER_API_KEY,
-  maxTemp = 40
+  maxTemp = 40,
+  fakeTemperature = 14.3 // You can change this to any static or random value
 }) {
-  const [temperature, setTemperature] = useState(null);
-  const [lastUpdate, setLastUpdate] = useState(null);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    const fetchWeather = async () => {
-      try {
-        // WeatherAPI.com endpoint
-        const res = await fetch(
-          `https://api.weatherapi.com/v1/current.json?key=${apiKey}&q=${encodeURIComponent(city)}&aqi=no`
-        );
-
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-        }
-
-        const data = await res.json();
-
-        // Check if the response contains an error
-        if (data.error) {
-          throw new Error(data.error.message);
-        }
-
-        // WeatherAPI.com response structure
-        setTemperature(Math.round(data.current.temp_c * 10) / 10);
-        setLastUpdate(new Date(data.current.last_updated));
-        setError(null);
-      } catch (err) {
-        console.error('Fetch error:', err);
-        setError(err.message);
-        setTemperature(null);
-        setLastUpdate(null);
-      }
-    };
-
-    fetchWeather();
-  }, [city, apiKey]);
-
-  if (error) {
-    return (
-      <GlassCard elevation={1} sx={{ p: 2, textAlign: 'center' }}>
-        <Typography color="error">Error: {error}</Typography>
-      </GlassCard>
-    );
-  }
-
-  if (temperature == null) {
-    return (
-      <GlassCard elevation={1} sx={{ p: 2, textAlign: 'center' }}>
-        <Typography>Loading temperature for {city}…</Typography>
-      </GlassCard>
-    );
-  }
-
-  // gauge math
+  const temperature = Math.round(fakeTemperature * 10) / 10;
   const size = 240;
   const strokeWidth = 20;
   const radius = (size - strokeWidth) / 2;
@@ -110,11 +54,9 @@ export default function TemperatureGauge ({
           <Typography variant="h4">{temperature}°C</Typography>
         </Box>
       </Box>
-      {lastUpdate && (
-        <Typography variant="caption">
-          Last updated: {lastUpdate.toLocaleTimeString()}
-        </Typography>
-      )}
+      <Typography variant="caption">
+        Last updated: Just now
+      </Typography>
     </GlassCard>
   );
 }

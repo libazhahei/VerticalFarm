@@ -269,6 +269,7 @@ Please return a JSON object with the following structure:
     "final_decision": "string: The function call to execute the chosen solution, e.g., 'SOLUTION_01' or 're_assess_solution'",
 }}
 """
+
 class Step3Output(BaseModel):
     final_decision: str
     reason: str
