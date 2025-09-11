@@ -20,6 +20,7 @@ from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_perplexity import ChatPerplexity
 from pydantic import SecretStr
+from langchain_core.messages import BaseMessage
 
 system_prompt = """
 You are an intelligent assistant specializing in environmental monitoring for indoor vertical farms.
@@ -177,10 +178,49 @@ class DailyPlanner:
             return expect_type.model_validate(parsed_json).model_dump_json()
         except Exception as e:
             pass 
-        return fix_and_validate_json(json_str, expect_type, ChatOpenAI(
+        json_fix_template = """
+        ## Role
+        You are a JSON converter and repair tool.
+
+        ## Task
+        Your task is to:
+        - Parse the given content (which may contain syntax errors or be only partially structured like JSON)
+        - Validate and convert it into a fully valid JSON that conforms to the following JSON Schema.
+        - Fix formatting issues (e.g. unquoted strings, booleans like True/False, trailing commas).
+        - Coerce compatible values (e.g. numbers in strings → numbers, if schema expects so).
+        - Ensure all required fields are present, setting them to null if they cannot be inferred.
+
+        ## JSON Schema (use this as the ground truth structure):
+        {json_schema}
+
+        ## Input:
+        {error_json}
+        ---
+        ## Output:
+        Return only the corrected JSON. Do not add comments or explanations. If any required fields are missing and cannot be inferred, set them to null.
+
+        {{corrected_json}}
+        """
+        json_fix_prompt = PromptTemplate.from_template(json_fix_template)
+        json_fix_llm = ChatOpenAI(
             model="gpt-4.1-nano",
             api_key=SecretStr(self.openai_key),
-        ))
+        )
+        json_fix_chain = json_fix_prompt | json_fix_llm | json_parser
+        try:
+            fixed_json = json_fix_chain.invoke(
+                input={
+                    "error_json": json_str.content,
+                    "json_schema": expect_type.model_json_schema()
+                }
+            )
+            return expect_type.model_validate(fixed_json).model_dump_json()
+        except Exception as e:
+            print(f"Error parsing JSON: {e}")
+            print(f"Original content: {json_str.content}")
+            return "{}"  # Return empty JSON if parsing fails
+            # return expect_type.model_validate({}).model_dump_json()
+
 
     def _prepare_input(self, original_input_json: dict, p1_output: dict) -> dict:
         return {

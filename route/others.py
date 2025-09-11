@@ -39,7 +39,6 @@ async def get_board_status(board_id: int) -> dict:
         return {"error": "Invalid board ID"}
 
     retriver = CommonDataRetriver.get_instance(board_id)
-    print(retriver, board_id, retriver.num_samples)
     if retriver.num_samples == 0:
         return {"error": "This device is offline or has no data."}
     return {

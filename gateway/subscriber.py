@@ -7,6 +7,7 @@ from typing import Awaitable, Deque, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from aiorwlock import RWLock
+from numpy import average
 
 from data.tables import BoardData, BoardDataBatchWriter
 
