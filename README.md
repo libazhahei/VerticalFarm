@@ -2,10 +2,6 @@
 
 > Thanks Zixi and his PCB Design.   [https://github.com/1-hexene/CropWaifu](https://github.com/1-hexene/CropWaifu)
 
-> Thanks Riley and Amber for Frontend Design and implementation
-
-> Feel free to do more development based on our project.
-
 > Issue Requests if you wanna any help on this topic
 
 Please check tags for source code. 
