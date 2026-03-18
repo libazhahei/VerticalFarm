@@ -233,11 +233,11 @@ Serves as the physical execution layer (PWM/PID control) and the local network b
 
 Open-source small language models (SLMs) struggle with strict JSON formatting and complex logical reasoning out-of-the-box. We implemented a Teacher-Student Knowledge Distillation pipeline to inject GPT-4 level intelligence into edge-deployable models.
 
-Data Synthesis (Teacher Model): We utilized OpenAI's GPT-4o API to process historical sensor telemetry and generate ideal control strategies (JSON-formatted tool calls). We mixed this synthetic dataset with 30% human-expert agricultural data to ensure physical realism.
+Data Synthesis (Teacher Model): We utilized OpenAI's GPT-4.1 API to process historical sensor telemetry and generate ideal control strategies (JSON-formatted tool calls). We mixed this synthetic dataset with 30% human-expert agricultural data to ensure physical realism.
 
-Supervised Fine-Tuning (SFT): We evaluated base models including Qwen-4B, Gemma-2B, and Llama-3-8B. Using LoRA (Low-Rank Adaptation), we fine-tuned the optimal candidate on our custom instruction dataset, strictly locking its ability to output standard Function Calling schemas.
+Supervised Fine-Tuning (SFT): We evaluated base models including Qwen-4B, Gemma-2B, Gemma-3-4B and Llama-3.2-3B. Using LoRA (Low-Rank Adaptation), we fine-tuned the optimal candidate on our custom instruction dataset, strictly locking its ability to output standard Function Calling schemas.
 
-Static Quantization for Edge Deployment: Post-training, the model weights were exported and subjected to Q4_K_M (INT4) static quantization via llama.cpp. This crucial step compressed the model's VRAM footprint from ~8GB down to approximately 2.5GB, enabling smooth, completely offline inference on the Jetson Orin Nano while preserving precision.
+Static Quantization for Edge Deployment: Post-training, the model weights were exported and subjected to Q4_K_M (INT4) static quantization via llama.cpp. This crucial step compressed the model's VRAM footprint from to approximately 2.5GB - 3GB, enabling smooth, completely offline inference on the Jetson Orin Nano while preserving precision.
 
 ### Agentic Function Calling & Safety Guardrails
 
@@ -271,6 +271,11 @@ Triggering RAG (Retrieval-Augmented Generation): If the LLM identifies an unknow
 
 Fallback Retry: If the LLM output crashes or formatting is corrupted (a known side-effect of INT4 quantization), the Interception Layer catches the exception, forces a hardcoded safety fallback state (e.g., fans to 100%, lights to 50%), and prompts the LLM for a retry, ensuring zero downtime for the physical hardware.
 
+
+|  |
+|:---:|
+|![image.png](image%2013.png)| 
+|Agent runtime logs|
 
 ### LED Heating Model
 
