@@ -2,9 +2,6 @@
 
 > Thanks Zixi and his PCB Design.   [https://github.com/1-hexene/CropWaifu](https://github.com/1-hexene/CropWaifu)
 
-> Issue Requests if you wanna any help on this topic
-
-Please check tags for source code. 
 
 # Introduction
 
@@ -209,10 +206,71 @@ To address these specific challenges within our IoT project, this AI component i
 This section details the architecture, underlying models, and intelligent decision-making process of this AI component, demonstrating its critical role in enhancing the overall IoT environmental control system.
 
 ## System architecture
-
 Our system is designed around a synergistic cloud-edge architecture, where responsibilities are strategically divided to maximize both intelligence and responsiveness.
 
 Accurate predictive control hinges on a reliable model of the system's thermal dynamics. Instead of relying on black-box neural networks, we developed interpretable, physics-informed models that capture the primary heat transfer mechanisms.
+### Agentic LLM System & Heterogeneous Edge Architecture
+
+To address the severe compute and memory constraints of edge devices while maintaining real-time physical control and mitigating LLM hallucinations, we designed a Heterogeneous Edge-Cloud-Local Architecture. This design completely decouples the high-frequency IoT I/O threads from the latency-heavy LLM inference tasks, ensuring millisecond-level physical safety alongside complex minute-level AI decision-making.
+
+### Distributed Hardware Topology & Decoupling
+
+The system is distributed across four specialized hardware nodes, each optimized for specific workloads:
+
+**Raspberry Pi (Event-Driven Master & Safety Gateway):**
+Acts as the central asynchronous dispatcher. By running a lightweight Python event-loop, it seamlessly coordinates millisecond-level MQTT/BLE telemetry from the lower computers and forwards complex state anomalies to the AI nodes. It prevents long-running AI inference tasks from blocking critical sensor data ingestion.
+
+**NVIDIA Jetson Orin Nano (LLM Inference Engine):**
+A dedicated neural processing node operating entirely offline. It runs the quantized local LLM, focusing solely on matrix multiplications and token generation without handling any direct hardware interruptions.
+
+**PC Server (Local RAG & Vector Database):**
+Hosts a local instance of PostgreSQL with the pgvector extension and a small-parameter ONNX embedding model. It serves as the local knowledge base, retrieving historical agricultural playbooks and troubleshooting guides without relying on external internet access.
+
+**ESP32 "CropWaifu" (IoT Edge Node):**
+Serves as the physical execution layer (PWM/PID control) and the local network backbone (acting as a Wi-Fi AP). This ensures that even in total external network blackouts, the Raspberry Pi, Jetson, and ESP32 maintain a closed-loop control LAN.
+
+### Cloud-to-Edge Distillation & Fine-Tuning Pipeline
+
+Open-source small language models (SLMs) struggle with strict JSON formatting and complex logical reasoning out-of-the-box. We implemented a Teacher-Student Knowledge Distillation pipeline to inject GPT-4 level intelligence into edge-deployable models.
+
+Data Synthesis (Teacher Model): We utilized OpenAI's GPT-4o API to process historical sensor telemetry and generate ideal control strategies (JSON-formatted tool calls). We mixed this synthetic dataset with 30% human-expert agricultural data to ensure physical realism.
+
+Supervised Fine-Tuning (SFT): We evaluated base models including Qwen-4B, Gemma-2B, and Llama-3-8B. Using LoRA (Low-Rank Adaptation), we fine-tuned the optimal candidate on our custom instruction dataset, strictly locking its ability to output standard Function Calling schemas.
+
+Static Quantization for Edge Deployment: Post-training, the model weights were exported and subjected to Q4_K_M (INT4) static quantization via llama.cpp. This crucial step compressed the model's VRAM footprint from ~8GB down to approximately 2.5GB, enabling smooth, completely offline inference on the Jetson Orin Nano while preserving precision.
+
+### Agentic Function Calling & Safety Guardrails
+
+To bridge the gap between text generation and physical hardware actuation, we introduced a robust Python Interception Layer on the Raspberry Pi. This layer is critical for mitigating command compliance degradation commonly seen in quantized models.
+
+#### Pre-defined Tool Schema
+
+The edge LLM is trained to output specific XML-wrapped JSON schemas when hardware action is required:
+
+<tool_call>
+{
+  "name": "set_environmental_controls",
+  "arguments": {
+    "target_fan_rpm": 2200,
+    "target_led_pwm": 0.8,
+    "rationale": "Temperature exceeded 30°C threshold; increasing ventilation."
+  }
+}
+</tool_call>
+
+
+#### The Python Interception Layer & Fallback Mechanism
+
+When the Jetson node streams tokens back to the Raspberry Pi, the Interception Layer performs the following lifecycle:
+
+Regex Parsing: Extracts the payload from the <tool_call> tags, preventing conversational hallucinations from reaching the MQTT broker.
+
+Contradiction Detection & Forward Simulation: The Pi cross-references the requested parameters against embedded physics-informed thermal models. If the LLM commands an action that violates physical safety (e.g., maximum LED power while the temperature is critically high), the command is blocked.
+
+Triggering RAG (Retrieval-Augmented Generation): If the LLM identifies an unknown symptom (e.g., "rapid humidity drop with yellowing leaves"), it outputs a query_playbook tool call. The Pi routes this to the PC's pgvector database, retrieves similar historical solutions, and appends them to the LLM's context window for a second-pass reasoning.
+
+Fallback Retry: If the LLM output crashes or formatting is corrupted (a known side-effect of INT4 quantization), the Interception Layer catches the exception, forces a hardcoded safety fallback state (e.g., fans to 100%, lights to 50%), and prompts the LLM for a retry, ensuring zero downtime for the physical hardware.
+
 
 ### LED Heating Model
 
@@ -258,7 +316,7 @@ $$
 
 T_\text{day}^\text{min} \;\leq\; T_\text{eff}(h) \;\leq\; T_\text{day}^\text{max}, 
 \quad h \in \mathcal{H}_\text{light}
- \\
+\\
 
 T_\text{night}^\text{min} \;\leq\; T_\text{ambient}(h) \;\leq\; T_\text{night}^\text{max}, 
 \quad h \in \mathcal{H}_\text{dark}
