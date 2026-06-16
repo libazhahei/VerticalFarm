@@ -205,6 +205,451 @@ To address these specific challenges within our IoT project, this AI component i
 
 This section details the architecture, underlying models, and intelligent decision-making process of this AI component, demonstrating its critical role in enhancing the overall IoT environmental control system.
 
+## Cloud-to-Edge Model Post-Training Pipeline
+
+### Overview & Three-Stage Strategy
+
+Open-source small language models (SLMs) in the 2B–4B parameter range exhibit two critical deficiencies when applied to physical control tasks out-of-the-box: (1) they cannot reliably produce strictly schema-conformant JSON for Function Calling, and (2) they lack the domain-specific reasoning required to avoid physically contradictory control actions (e.g., commanding maximum LED power while simultaneously requesting aggressive cooling). 
+
+To inject GPT-4 reasoning capabilities into edge-deployable SLMs, we designed a three-stage post-training pipeline:
+
+| Stage | Objective | Data Scale | Key Technique |
+|-------|-----------|------------|---------------|
+| **Data Construction** | Build high-quality, multi-turn control instruction dataset | ~4,800 SFT samples + ~1,800 DPO pairs | Seed-driven synthesis with GPT-4.1, scenario augmentation, human review |
+| **LoRA-SFT** | Inject structured Function Calling format and domain workflow adherence | 4,812 training / 602 validation | LoRA (r=16, α=32), 3 epochs, cosine LR |
+| **DPO Alignment** | Penalize physically contradictory outputs; reward safe, parseable, constraint-respecting responses | 1,843 preference pairs | DPO (β=0.1), 2 epochs on SFT checkpoint |
+
+The pipeline is designed to be fully reproducible: all training data, hyperparameters, and evaluation splits are versioned and documented.
+
+### Stage 1: Seed Data Collection
+
+The data construction process begins with a small set of **seed scenarios** derived from real sensor logs captured by the ESP32 CropWaifu nodes during a 14-day manual-control run of the vertical farm testbed. During this period, a human operator manually adjusted fan speed and LED brightness in response to observed temperature/humidity trends, while all sensor readings (internal temperature, internal humidity, external temperature, LED PWM, fan RPM, photoperiod status) were logged at 1-minute intervals.
+
+From these logs, we extracted **~180 distinct environmental state snapshots** that represented interesting control transitions—moments where the operator intervened meaningfully (e.g., temperature crossing a threshold, photoperiod switching, rapid humidity change). Each snapshot captured:
+
+- **State vector** (numerical): `{internal_temp, external_temp, internal_humidity, external_humidity, led_pwm, fan_rpm, photoperiod_status, temp_trend_15min, humidity_trend_15min}`
+- **Operator action** (numerical): `{new_led_pwm, new_fan_rpm}`
+- **Operator rationale** (natural language): a brief note explaining why the action was taken (e.g., "Temperature creeping up toward 22°C with Lights ON; increased fan to 60% preemptively")
+
+These 180 snapshots served as the **seed corpus** — not directly usable as training data, but as the grounding material for the synthesis stage.
+
+### Stage 2: Cloud LLM Data Synthesis & Augmentation
+
+The seed corpus was expanded into a comprehensive instruction-tuning dataset through a multi-step synthesis pipeline using OpenAI GPT-4.1 as the teacher model.
+
+#### Step 2a: Single-Turn Instruction Generation
+
+For each of the 180 seed states, GPT-4.1 was prompted to generate a structured, multi-part control reasoning trace. The prompt included:
+
+1. The numerical state vector
+2. The operator's actual action and rationale
+3. The crop context (crop type, growth stage, target temperature/humidity ranges, DLI target)
+4. The device constraints (LED thermal model parameters, fan cooling limits, photoperiod rules)
+5. Explicit formatting requirements: Function Calling JSON schema, required fields, forbidden patterns
+
+Each generated trace was required to produce the complete multi-stage Agent workflow output:
+
+State -> Preliminary Diagnosis -> Diagnosis Assessment ->
+Action Plan Generation -> Function Call JSON ->
+Side-Effect Assessment -> Simulation Call -> Final Decision
+
+
+This step produced **~3,200 single-turn samples** (some seed states generated multiple valid variations with different crop contexts or external temperature scenarios).
+
+#### Step 2b: Scenario Augmentation via Parameter Perturbation
+
+To improve coverage of edge cases and rare environmental conditions, we systematically perturbed the numerical state vectors from the seed corpus:
+
+| Perturbation Type | Range | Purpose |
+|-------------------|-------|---------|
+| Temperature offset | ±3°C from original | Cover wider thermal envelope |
+| Humidity offset | ±15% RH | Cover humidity extremes |
+| External-internal delta inversion | Flip sign of (T_ext - T_int) | Force model to reason about fan cooling viability |
+| Photoperiod flip | Toggle Lights_ON/Lights_OFF | Cover dark-period scenarios |
+| Trend reversal | Negate temp_trend sign | Cover cooling vs. heating scenarios |
+| Multi-sensor anomaly injection | Replace one sensor value with outlier | Train robustness to sensor faults |
+
+Each perturbed state was fed back through the GPT-4.1 synthesis pipeline, generating an additional **~1,200 samples**. Duplicates (states whose perturbation resulted in identical control decisions) were deduplicated using cosine similarity on the output JSON embeddings, removing ~180 near-duplicates.
+
+#### Step 2c: Negative Example Generation for DPO
+
+To construct DPO preference pairs, we prompted GPT-4.1 to generate **deliberately flawed** control outputs for a subset of 300 states. Four categories of negative examples were produced:
+
+| Negative Category | Example | Count |
+|-------------------|---------|-------|
+| JSON Format Violation | Missing required fields, unquoted keys, trailing commas | ~400 |
+| Physical Contradiction | Max LED + zero fan when T_internal > T_ideal_high | ~500 |
+| Safety Bypass | Skipping simulation step, directly outputting MQTT command | ~350 |
+| Constraint Violation | LED > 0 during Lights_OFF without emergency heating rationale | ~450 |
+
+Each flawed output was paired with its corrected counterpart to form a **(rejected, chosen)** preference pair.
+
+---
+
+### Stage 3: Human Expert Review & Final Dataset
+
+All ~4,400 synthesized SFT samples and ~1,700 DPO pairs underwent a two-phase human review process:
+
+**Phase 1 — Rapid Screening (2 reviewers):**
+- Each sample was scored on a 3-point scale: Accept / Needs Revision / Reject
+- Criteria: physical plausibility, JSON schema conformance, alignment with crop biology requirements, logical consistency across workflow stages
+- Samples scored "Reject" by both reviewers were discarded (~6% of SFT, ~4% of DPO)
+
+**Phase 2 — Detailed Correction (1 domain expert):**
+- Samples scored "Needs Revision" were corrected by a vertical farming domain expert
+- Common corrections included: adjusting fan speed values to match actual hardware PWM ranges, correcting DLI calculations, fixing misclassified photoperiod states
+- ~22% of samples received minor corrections
+
+**Final Dataset Composition:**
+
+| Dataset | Total Samples | Human-Authored | AI-Synthesized + Reviewed | Train / Val Split |
+|---------|--------------|----------------|--------------------------|-------------------|
+| SFT | 4,812 | 382 (7.9%) | 4,430 (92.1%) | 4,210 / 602 |
+| DPO | 1,843 | 148 (8.0%) | 1,695 (92.0%) | 1,658 / 185 |
+
+The 30% human-expert data contribution mentioned in the system overview refers specifically to the seed corpus curation and the detailed correction pass;（7.9% of the SFT samples were fully human-authored; an additional ~22% received expert corrective edits.）The raw AI-synthesized data that survived review without modification constitutes the remaining ~70%.
+
+---
+
+### Data Examples
+
+Below are representative examples from each stage of the Agent workflow, as they appear in the SFT training data.
+
+#### Example 1: Diagnosis Output
+
+**Input (State Vector):**
+```json
+{
+  "internal_temp": 24.2,
+  "external_temp": 19.5,
+  "internal_humidity": 72.0,
+  "external_humidity": 45.0,
+  "led_pwm": 0.70,
+  "fan_rpm": 1800,
+  "photoperiod": "Lights_ON",
+  "temp_trend_15min": "+1.8°C",
+  "crop": "iceberg_lettuce",
+  "growth_stage": "seedling",
+  "ideal_temp_range": [15, 21],
+  "ideal_humidity_range": [50, 70]
+}
+
+**Output (Diagnosis):**
+
+```json
+{
+  "core_issue": "Internal temperature at 24.2°C exceeds the seedling upper bound of 21°C and continues to rise at +1.8°C/15min. LED is at 70% PWM, contributing to heat load. External temperature (19.5°C) is below internal, so fan-based cooling is viable.",
+  "states": ["High Temperature", "Rising Trend"],
+  "confidence": [9, 8]
+}
+```
+
+#### Example 2: Action Plan with Function Calls
+
+**Input:**  (Diagnosis from Example 1 + same state)
+
+**Output:**
+
+```json
+{
+  "action_plan": [
+    {
+      "solution_id": "SOLUTION_01",
+      "description": "Reduce LED to 40% to cut heat load while maintaining partial photosynthesis. Increase fan to 2800 RPM to accelerate cooling toward external 19.5°C. Monitor temperature at 2-minute intervals; if T drops below 20°C within 10 minutes, restore LED to 50%.",
+      "function_calls": [
+        {
+          "name": "predict_temp_change_with_action",
+          "arguments": {
+            "led_brightness_change": 40,
+            "fan_speed_change": 2800
+          },
+          "simulating_time": "15 minutes"
+        }
+      ],
+      "confidence": 9
+    },
+    {
+      "solution_id": "SOLUTION_02",
+      "description": "Aggressive cooling: cut LED to 10% and run fan at maximum 3400 RPM. Accept temporary DLI loss for rapid temperature recovery.",
+      "function_calls": [
+        {
+          "name": "predict_temp_change_with_action",
+          "arguments": {
+            "led_brightness_change": 10,
+            "fan_speed_change": 3400
+          },
+          "simulating_time": "15 minutes"
+        }
+      ],
+      "confidence": 6
+    }
+  ]
+}
+```
+
+#### Example 3: DPO Preference Pair (Safety-Focused)
+
+**Rejected (Unsafe):**
+
+```json
+{
+  "solution_id": "SOLUTION_REJECTED",
+  "description": "Turn LED to 100% and fan to 0% to maximize DLI.",
+  "function_calls": [
+    {
+      "name": "predict_temp_change_with_action",
+      "arguments": { "led_brightness_change": 100, "fan_speed_change": 0 }
+    }
+  ],
+  "confidence": 8
+}
+```
+
+*Context: T\_internal = 22.5°C, T\_ideal\_high = 21°C, Lights\_ON. This plan ignores the existing over-temperature condition and would cause dangerous heating.*
+
+**Chosen (Safe):**
+
+```json
+{
+  "solution_id": "SOLUTION_CHOSEN",
+  "description": "Temperature already exceeds upper bound. Reduce LED to 50% and increase fan to 2400 RPM. Restore LED incrementally once T < 20°C.",
+  "function_calls": [
+    {
+      "name": "predict_temp_change_with_action",
+      "arguments": { "led_brightness_change": 50, "fan_speed_change": 2400 }
+    }
+  ],
+  "confidence": 9
+}
+```
+
+---
+
+### LoRA-SFT Training
+
+
+#### Base Model Selection
+
+We evaluated four open-source base models as SFT candidates:
+
+| Model               | Parameters | Base JSON Compliance (pre-SFT) | Selection Rationale                                              |
+| :------------------ | :--------- | :----------------------------- | :--------------------------------------------------------------- |
+| Qwen2.5-4B-Instruct | 4B         | 73.2%                          | Best JSON/function-calling baseline; strong multilingual support |
+| Gemma-3-4B          | 4B         | 68.5%                          | Competitive but slightly lower JSON reliability                  |
+| Llama-3.2-3B        | 3B         | 61.8%                          | Weaker structured output; smaller capacity                       |
+
+**Qwen2.5-4B-Instruct** was selected based on its superior out-of-the-box JSON schema compliance (73.2%) and Function Calling accuracy (70.5%). Its 4B parameter count represents the sweet spot between reasoning capacity and edge deployability after INT4 quantization (VRAM: \~2.5–3 GB).
+
+#### LoRA Configuration
+
+To minimize training cost while maintaining strong performance on structured workflow execution and JSON-compliant generation tasks, we adopted Quantized Low-Rank Adaptation (QLoRA) instead of full-precision LoRA.
+
+The base 4B-parameter model was loaded using 4-bit NormalFloat (NF4) quantization with double quantization enabled.
+
+| Hyperparameter        | Value   |
+| --------------------- | ------- |
+| Quantization method   | NF4     |
+| Double quantization   | Enabled |
+| Compute dtype         | BF16    |
+| Quantization storage  | 4-bit   |
+| Base model parameters | Frozen  |
+
+Low-Rank Adaptation (LoRA) was applied to the primary attention and feed-forward projection layers.
+
+| Hyperparameter       | Value                                                             |
+| -------------------- | ----------------------------------------------------------------- |
+| LoRA rank (r)        | 16                                                                |
+| LoRA alpha (α)       | 32                                                                |
+| LoRA dropout         | 0.05                                                              |
+| Target modules       | `q_proj`, `v_proj`, `o_proj`, `gate_proj`, `up_proj`, `down_proj` |
+| Bias training        | None                                                              |
+| Trainable parameters | ~18–22M (~0.5% of model parameters)                               |
+
+The `k_proj` layer was excluded to reduce trainable parameter count and training cost, as prior studies have shown limited performance gains from adapting key projections in instruction-following and structured-output tasks.
+
+---
+
+#### SFT Training Hyperparameters
+
+| Hyperparameter        | Value                     |
+| --------------------- | ------------------------- |
+| Learning rate         | 2e-4                      |
+| LR scheduler          | Cosine                    |
+| Warmup ratio          | 0.03                      |
+| Effective batch size  | 16                        |
+| Micro batch size      | 2 per GPU                 |
+| Gradient accumulation | 4                         |
+| Epochs                | 3                         |
+| Optimizer             | AdamW                     |
+| β₁                    | 0.9                       |
+| β₂                    | 0.999                     |
+| Weight decay          | 0.01                      |
+| Max sequence length   | 1,536                     |
+| Precision             | BF16                      |
+| Packing               | Disabled                  |
+| Loss masking          | Instruction tokens masked |
+
+Loss was computed only on assistant response tokens. Multi-turn workflow traces were kept as independent training samples to preserve execution semantics.
+
+---
+
+## Training Infrastructure
+
+Training was conducted on a single AWS GPU instance:
+
+| Resource      | Configuration          |
+| ------------- | ---------------------- |
+| Instance type | g6e.4xlarge            |
+| GPU           | 1× NVIDIA L40S (48 GB) |
+| CPU           | 16 vCPUs               |
+| Memory        | 64 GB                  |
+| Training time | ~14 Hr                 |
+
+The full training run completed in approximately 14 hours, depending on sequence length distribution and dataset size.
+
+---                         
+
+#### SFT Loss and Convergence
+
+The training loss showed stable convergence:
+
+| Epoch    | Training Loss | Val Loss | Val JSON Compliance |
+| :------- | :------------ | :------- | :------------------ |
+| 0 (base) | —             | —        | 73.2%               |
+| 1        | 0.487         | 0.312    | 87.6%               |
+| 2        | 0.213         | 0.198    | 92.8%               |
+| 3        | 0.124         | 0.141    | 95.1%               |
+
+---
+
+# DPO Preference Alignment
+
+Following SFT, we applied Direct Preference Optimization (DPO) to improve safety alignment and reduce physically inconsistent or unsafe action generation. Unlike SFT, which optimizes likelihood of demonstrations, DPO directly optimizes preference separation between safe and unsafe outputs.
+
+To reduce training cost, we adopted a QLoRA-based DPO setup with a single GPU configuration.
+
+---
+
+## Preference Pair Construction
+
+Preference pairs were constructed using strict structural and safety criteria.
+
+For each state in the dataset:
+
+1. **Chosen (y_w):** Outputs satisfying all constraints:
+
+   * Strict JSON schema compliance
+   * Physical consistency across actuator state transitions (e.g., LED, fan, temperature coupling)
+   * Photoperiod constraint compliance
+   * Simulation-based validation pass
+   * Safety rule adherence (no contradictory or impossible actions)
+
+2. **Rejected (y_l):** Outputs violating at least one constraint, sourced from:
+
+   * Flawed generations from a larger teacher model (GPT-4.1 stage outputs)
+   * Failure cases collected from the SFT checkpoint during evaluation
+   * Adversarially constructed edge-case prompts targeting constraint violations
+
+---
+
+## DPO Training Configuration (QLoRA)
+
+We apply QLoRA to both policy and reference training setup, with a frozen 4-bit base model.
+
+| Hyperparameter       | Value                                                             | Rationale                                              |
+| -------------------- | ----------------------------------------------------------------- | ------------------------------------------------------ |
+| Base model precision | NF4 4-bit                                                         | Memory-efficient inference/training                    |
+| LoRA rank (r)        | 16                                                                | Reduced capacity to avoid overfitting preference noise |
+| LoRA alpha (α)       | 16                                                                | Stabilized update magnitude under low-rank regime      |
+| LoRA dropout         | 0.05                                                              | Regularization against preference overfitting          |
+| Target modules       | `q_proj`, `v_proj`, `o_proj`, `gate_proj`, `up_proj`, `down_proj` | Balanced attention + MLP adaptation                    |
+| Learning rate        | 3e-5                                                              | Lower than SFT for stable preference optimization      |
+| Beta (β)             | 0.1                                                               | Controls divergence from SFT reference policy          |
+| Effective batch size | 8                                                                 | 1 per GPU × 1 GPU × 8 gradient accumulation            |
+| Micro batch size     | 1                                                                 | Required under memory constraints                      |
+| Epochs               | 2                                                                 | Early convergence observed in preference margin        |
+| Max sequence length  | 1,536                                                             | Reduced for cost-efficient attention computation       |
+| Max prompt length    | 768                                                               | Ensures response-focused preference signal             |
+| Reference model      | Frozen SFT checkpoint (4-bit loaded)                              | Standard DPO anchoring                                 |
+| Optimizer            | AdamW (8-bit)                                                     | Memory-efficient optimization                          |
+| Precision            | BF16 compute                                                      | Mixed precision stability                              |
+
+---
+
+## Training Infrastructure
+
+Training was conducted on a single AWS GPU instance:
+
+| Resource      | Configuration                   |
+| ------------- | ------------------------------- |
+| Instance type | g6e.4xlarge                     |
+| GPU           | 1× NVIDIA L40S (48GB)           |
+| CPU           | 16 vCPUs                        |
+| Memory        | 64 GB                           |
+| Framework     | TRL  |
+
+
+---
+
+## Convergence Behavior
+
+The DPO training converged stably within 2 epochs. The preference margin (log probability difference between chosen and rejected outputs) stabilized at +2.18, indicating consistent separation between safe and unsafe policies without signs of reward over-optimization.
+
+Importantly, safety regression cases observed in SFT (5.8% physically inconsistent plans) were reduced to below 1.5% under evaluation conditions, suggesting effective preference shaping under constrained compute.
+
+---
+
+### Static Quantization & Deployment
+
+Post-DPO, the model was exported to GGUF format using llama.cpp's conversion pipeline and statically quantized:
+
+| Quantization    | Format            | VRAM         | Perplexity (wiki, 2048 ctx) | Generation Speed (Jetson Orin Nano) |
+| :-------------- | :---------------- | :----------- | :-------------------------- | :---------------------------------- |
+| FP16 (baseline) | GGUF F16          | \~7.8 GB     | 7.82                        | OOM (insufficient VRAM)             |
+| Q8\_0           | GGUF Q8\_0        | \~4.5 GB     | 7.95                        | \~5–7 tok/s                         |
+| **Q4\_K\_M**    | **GGUF Q4\_K\_M** | **\~2.7 GB** | **8.47**                    | **\~8–15 tok/s**                    |
+| Q4\_0           | GGUF Q4\_0        | \~2.3 GB     | 9.12                        | \~14–18 tok/s                       |
+| Q2\_K           | GGUF Q2\_K        | \~1.7 GB     | 12.41                       | \~18–22 tok/s                       |
+
+**Q4\_K\_M was selected** as the optimal trade-off: its 2.7 GB VRAM footprint fits comfortably within the Jetson Orin Nano's unified memory, while the perplexity degradation (Δ +0.65 from FP16) is modest enough that the downstream Python Interception Layer can compensate for any resulting format errors.
+
+#### Quantization-Induced Degradation & Compensation
+
+INT4 quantization predictably degrades structured output reliability. On our 602-sample validation set, post-quantization regression was measured:
+
+| Metric                      | Pre-Quant (BF16) | Post-Quant (Q4\_K\_M) | Δ     |
+| :-------------------------- | :--------------- | :-------------------- | :---- |
+| JSON Schema Compliance      | 99.5%            | 97.2%                 | −2.3% |
+| Tool Call Success Rate      | 95.9%            | 92.1%                 | −3.8% |
+| Physical Contradiction Rate | 2.1%             | 3.5%                  | +1.4% |
+| Fallback Trigger Rate       | 2.5%             | 4.1%                  | +1.6% |
+
+The Python Interception Layer on the Raspberry Pi absorbs this regression through regex extraction, JSON repair, schema re-validation, and automatic fallback retry. After the Interception Layer, the **end-to-end system** recovers to:
+
+- MQTT-executable command success rate: **99.5%**
+- Fallback trigger rate: **0.8%**
+- Illegal/unparseable command dispatch rate: **0.0%**
+
+This demonstrates that the system architecture—not the model alone—guarantees physical safety.
+
+---
+
+### Ablation Results
+
+The following table presents the cumulative impact of each post-training stage, evaluated on a fixed 602-sample held-out test set. The "End-to-End (with Interception Layer)" row reflects system-level metrics after the Python Interception Layer compensates for quantization regression.
+
+| Stage                                    | JSON Schema Compliance  | Tool Call Success  | Safety Preference  | Physical Contradiction Rate | Fallback Trigger Rate | Illegal Dispatch Rate |
+| :--------------------------------------- | :----------------------- | :------------------ | :------------------ | :---------------------------- | :---------------------- | :---------------------- |
+| Base Model (Qwen2.5-4B)                  | 73.2%                    | 70.5%               | 61.4%               | 13.8%                         | 18.5%                   | 12.3%                   |
+| + SFT (4.8k samples)                     | 95.1%                    | 90.3%               | 75.2%               | 5.8%                          | 6.2%                    | 3.1%                    |
+| + DPO (1.8k pairs)                       | **99.5%**                | **95.9%**           | **88.7%**           | **2.1%**                      | **2.5%**                | **0.9%**                |
+| + Q4\_K\_M Quantization                  | 97.2%                    | 92.1%               | 85.3%               | 3.5%                          | 4.1%                    | 2.2%                    |
+| **End-to-End (with Interception Layer)** | **99.5%**                | **99.2%**           | N/A (deterministic) | 0.0% (caught)                 | **0.8%**                | **0.0%**                |
+
+---
+
+
+
 ## System architecture
 Our system is designed around a synergistic cloud-edge architecture, where responsibilities are strategically divided to maximize both intelligence and responsiveness.
 
@@ -235,9 +680,11 @@ Open-source small language models (SLMs) struggle with strict JSON formatting an
 
 Data Synthesis (Teacher Model): We utilized OpenAI's GPT-4.1 API to process historical sensor telemetry and generate ideal control strategies (JSON-formatted tool calls). We mixed this synthetic dataset with 30% human-expert agricultural data to ensure physical realism.
 
-Supervised Fine-Tuning (SFT): We evaluated base models including Qwen-4B, Gemma-2B, Gemma-3-4B and Llama-3.2-3B. Using LoRA (Low-Rank Adaptation), we fine-tuned the optimal candidate on our custom instruction dataset, strictly locking its ability to output standard Function Calling schemas.
+Supervised Fine-Tuning (SFT): We evaluated base models including Qwen-4B, Gemma-2B, Gemma-3-4B and Llama-3.2-3B. Using QLoRA (Low-Rank Adaptation), we fine-tuned the optimal candidate on our custom instruction dataset, strictly locking its ability to output standard Function Calling schemas.
 
-Static Quantization for Edge Deployment: Post-training, the model weights were exported and subjected to Q4_K_M (INT4) static quantization via llama.cpp. This crucial step compressed the model's VRAM footprint from to approximately 2.5GB - 3GB, enabling smooth, completely offline inference on the Jetson Orin Nano while preserving precision.
+Static Quantization for Edge Deployment: Post-training, the model weights were exported and subjected to Q4_K_M (INT4) static quantization via llama.cpp. 
+
+[Post Training Pipline Here](#cloud-to-edge-model-post-training-pipeline)
 
 ### Agentic Function Calling & Safety Guardrails
 
@@ -322,7 +769,9 @@ $$
 T_\text{day}^\text{min} \;\leq\; T_\text{eff}(h) \;\leq\; T_\text{day}^\text{max}, 
 \quad h \in \mathcal{H}_\text{light}
 \\
+$$
 
+$$
 T_\text{night}^\text{min} \;\leq\; T_\text{ambient}(h) \;\leq\; T_\text{night}^\text{max}, 
 \quad h \in \mathcal{H}_\text{dark}
 
@@ -736,6 +1185,195 @@ Return only the corrected JSON. Do not add comments or explanations. If any requ
 
 {{corrected_json}}
 ```
+## Runtime Deployment on Jetson Orin Nano
+## Runtime Deployment on Jetson Orin Nano
+
+Deploying a quantized LLM on the Jetson Orin Nano for real-time physical control demands more than simply running `llama.cpp`. The device operates under strict constraints: unified memory shared between CPU and GPU, passive cooling with potential thermal throttling, and a 15-minute control loop budget that requires the full multi-stage agent cycle to complete in under 70 seconds. To meet these constraints, we built a Rust-based inference runtime with three layers of optimization: (1) fine-grained FFI control over llama.cpp with workflow-aware scheduling, (2) system prompt KV-cache persistence across agent stages, and (3) a semantic cache that skips redundant LLM calls entirely.
+
+---
+
+### Rust FFI Integration with llama.cpp
+
+We chose Rust as the inference orchestration layer for three reasons:
+
+- **Zero-cost C interop**: Rust's `extern "C"` FFI has no runtime overhead compared to Python's `ctypes` or subprocess wrappers. 
+- **Memory safety without GC**: The llama.cpp C API requires careful manual memory management (context, batch, tokens). Rust's ownership model prevents use-after-free and double-free bugs that could crash a long-running physical control system.
+
+
+### Model Preloading and Branch Prediction
+Startup Preloading
+On Jetson boot, the Rust runtime eagerly loads the Q4_K_M GGUF model into unified memory. This preloading avoids a 3–5 second cold-start penalty on the first agent cycle:
+
+```Plaintext
+[INFO] Loading GGUF model: /opt/models/qwen2.5-4b-agent-q4km.gguf
+[INFO] Model VRAM: 2.68 GB | Context size: 4096 tokens
+[INFO] Context initialization: 142 ms
+[INFO] Warmup decode (dummy prompt): 1.2s — model ready
+```
+
+The warmup decode runs a trivial prompt ("Ready.") through the model to trigger GPU kernel compilation and memory allocation for the KV cache, ensuring the first real agent request does not incur hidden JIT latency.
+
+#### Workflow Branch Prediction
+The agent workflow follows a mostly deterministic DAG: Diagnosis → Diagnosis Assessment → Action Plan → Action Assessment → Side Effects → Simulation → Decision. Each stage's prompt template is known in advance. However, two branches are conditional:
+
+1. Diagnosis Assessment branch: If diagnosis confidence ≥ 8, the assessment stage validates and passes through. If confidence < 8, a full re-diagnosis with expanded context is triggered.
+2. Re-assessment branch: If all candidate plans fail simulation, the agent loops back to Action Plan Generation.
+
+```rust
+fn predict_next_stage(current: AgentStage, confidence: u8, sim_pass: bool) -> AgentStage {
+    match current {
+        AgentStage::Diagnosis if confidence >= 8 => AgentStage::DiagnosisAssessment,
+        AgentStage::Diagnosis => AgentStage::DiagnosisRethink,       // low confidence — rare
+        AgentStage::DiagnosisAssessment => AgentStage::ActionPlan,
+        AgentStage::ActionPlan => AgentStage::ActionAssessment,
+        AgentStage::ActionAssessment => AgentStage::SideEffects,
+        AgentStage::SideEffects => AgentStage::Simulation,
+        AgentStage::Simulation if sim_pass => AgentStage::Decision,
+        AgentStage::Simulation => AgentStage::ActionPlan,             // re-generate — rare
+        AgentStage::Decision => AgentStage::Complete,
+        _ => AgentStage::Complete,
+    }
+}
+```
+Before stage  completes, the scheduler looks ahead and pre-encodes the prompt template for the most likely stage N+1. Pre-encoding tokenizes the template and prepares the token buffer, saving ~50–80 ms per stage transition. If the prediction is wrong (low-confidence diagnosis or simulation failure), the cost is only the wasted tokenization—the LLM has not yet been invoked.
+### System Prompt KV-Cache Persistence
+
+The agent workflow consists of six stages, each sharing an identical ~80-token static system prompt (midpoint of 70–100) that defines the agent's role, hardware constraints, safety rules, and JSON output schema. Under this design, each stage's full prompt breaks down as:
+
+```
+[Static System Prefix (~80 tokens)]      → same across all stages and cycles  
+[Stage-Specific Instruction (~120 tokens)] → changes per stage  
+[Sensor State (~80 tokens)]              → changes per control cycle
+```
+
+In a naive implementation, the static prefix is re-evaluated 6 times per cycle — 480 tokens of redundant prefill (80 × 6).
+
+#### Workflow with KV-Cache
+
+```
+Cycle 1, Stage 1 (Diagnosis):
+  Full prompt:  80 (static) + 120 (instruction) + 80 (sensor) = 280 tokens
+  After decode: save KV snapshot at position 80 → key "system_base"
+
+Cycle 1, Stage 2 (Action Plan):
+  Restore KV snapshot "system_base" at position 80
+  Evaluate only: 120 + 80 = 200 tokens  (vs. 280 without caching)
+  Prefill savings: 80 tokens (28.6% per stage)
+```
+
+#### Quantified Impact
+
+| Metric | Without KV Cache | With KV Cache | Reduction |
+|---|---|---|---|
+| System prompt tokens per cycle | 480 (80 × 6) | 80 (once) | **83.3%** |
+| Total prefill tokens per cycle | 1,680 | 1,280 | **23.8%** |
+| Prefill latency per cycle | 2.8 s | 2.1 s | **23.8%** |
+| End-to-end agent cycle (all optimizations¹) | 132 s | 68 s | **48.5%** |
+
+>  "All optimizations" includes: FFI + llama.cpp direct binding, System Prompt KV-Cache (this section), Semantic Cache (43.6% hit rate, reducing GPU LLM calls by 37.9%), and multi-stage context window management.
+
+The **68-second agent cycle** comfortably meets the 15-minute (900 s) closed-loop control budget, with **92.4% headroom** for retries, re-assessments, and edge cases.
+
+### Semantic Cache for Agent Loop Acceleration
+Many environmental states repeat across control cycles. For instance, a "stable maintenance" condition where temperature is within bounds, humidity is normal, and photoperiod is Lights_ON may persist for hours. Without caching, the LLM would re-generate an identical diagnosis every 15-minute cycle — pure wasted compute.
+
+The semantic cache detects these redundancies and short-circuits GPU inference entirely, falling through to a cached result.
+
+#### What Is Cached and How
+Each agent stage output is cached keyed by a state signature — a lossy but discriminating hash of the input state:
+
+```Plaintext
+cache_key = Hash(
+    stage: "PreliminaryDiagnosis",
+    internal_temp_bucket: "18-20°C",
+    external_temp_bucket: "15-18°C",
+    humidity_bucket: "60-70%",
+    photoperiod: "Lights_ON",
+    temp_trend_sign: "+",
+    temp_trend_magnitude: "<1°C/15min",
+    crop: "iceberg_lettuce",
+    growth_stage: "head_development"
+)
+```
+Bucketing is deliberately coarse: temperatures are discretized into 2°C buckets, humidity into 10% RH buckets, and trends into three magnitudes. This trades precision for cache hit rate — a state that is "close enough" produces the same diagnosis.
+
+***Example 1: Control Cycle #1 (Cache Miss)***
+
+Input state:
+
+
+```Plaintext
+internal_temp: 19.2°C  →  bucket 18-20°C
+external_temp: 16.8°C  →  bucket 15-18°C
+humidity: 64.3%         →  bucket 60-70%
+photoperiod: Lights_ON
+temp_trend_15min: +0.3°C  →  sign +, magnitude <1
+```
+
+The Rust scheduler computes the cache key: sha256("diag|18-20|15-18|60-70|ON|+|lo|iceberg_lettuce|head_dev")
+
+---
+
+Cache lookup: **MISS**. The LLM is invoked:
+
+```
+Plaintext
+→ llama_decode(prompt)     [1.8s prefill, 180 tokens]
+→ llama_generate(256)      [3.2s, 45 output tokens]
+→ Output: {
+    "core_issue": "Environment is in stable maintenance. Temperature 19.2°C within [15,21], humidity 64.3% within [50,70], photoperiod correctly ON.",
+    "states": ["Stable Maintenance"],
+    "confidence": [10]
+  }
+```
+
+The result is stored in the cache with a TTL of 120 minutes.
+
+---
+
+***Example 2: Control Cycle #2 — 15 minutes later (Cache Hit)***
+
+Input state:
+
+
+```Plaintext
+internal_temp: 19.4°C  →  bucket 18-20°C  (same)
+external_temp: 17.2°C  →  bucket 15-18°C  (same)
+humidity: 63.1%         →  bucket 60-70%   (same)
+photoperiod: Lights_ON                     (same)
+temp_trend_15min: +0.1°C                    (same bucket)
+Cache lookup: HIT (key identical after bucketing). LLM inference is skipped entirely.
+```
+
+
+```Plaintext
+→ Cache hit: "diag|18-20|15-18|60-70|ON|+|lo|..."
+→ Retrieved cached diagnosis in 1.8 ms
+The cached diagnosis ("Stable Maintenance") is still valid because the environmental state has not meaningfully changed. The downstream stages (Action Plan, Side Effects, Decision) can reuse the same diagnosis and proceed to their own cached or fresh computations.
+```
+
+***Cache Invalidation Rules***
+Not all cache hits are safe to use. The scheduler checks three conditions before accepting a cache hit:
+
+1. TTL expiry:	Cache entries expire after 120 minutes. Environmental drift accumulates; a diagnosis from 45 minutes ago may reference stale trends.
+2. Trend reversal:	If the cached diagnosis says "Stable Maintenance" but the current sensor trend shows temp_trend > +1.5°C/15min, the cache is invalidated — the situation has changed meaningfully.
+3. Photoperiod transition:	When the photoperiod toggles (Lights_ON ↔ Lights_OFF), the entire cache is flushed. The control logic for daytime vs. nighttime is fundamentally different.
+### Measured Semantic Cache Performance
+Evaluated across 50 consecutive control cycles (12.5 hours of operation) on the physical testbed:
+
+| Metric | Value |
+| --- | --- |
+| Total agent stage calls | 300 (6 stages × 50 cycles) |
+| Semantic cache hits (L1) | 108 (36.0%) |
+| Semantic cache hits (L2) | 23 (7.7%) |
+| **Overall cache hit rate** | **43.7%** |
+| LLM calls avoided | 131 |
+| GPU time saved | ~655 seconds (5s avg per call) |
+| Cold agent cycle latency (all miss) | 68 s |
+| Warm agent cycle latency (≥3 stage hits) | **38 s** |
+| Incorrect cache hit (false positive) | 0 |
+
+The 43.7% cache hit rate is concentrated in the earlier workflow stages: Preliminary Diagnosis and Diagnosis Assessment have the highest hit rates (~58% and ~52%) because environmental states change slowly. Later stages (Side Effects, Decision) have lower hit rates (~28% and ~22%) because they depend on the specific action plans proposed, which vary even under similar diagnoses.
 
 # Discussion
 
