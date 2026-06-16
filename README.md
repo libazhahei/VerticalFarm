@@ -765,17 +765,13 @@ Segmented Temperature Targets: This approach acknowledges the distinct metabolic
 Daytime (photosynthesis) and nighttime (respiration) have different target ranges:
 
 $$
-
 T_\text{day}^\text{min} \;\leq\; T_\text{eff}(h) \;\leq\; T_\text{day}^\text{max}, 
 \quad h \in \mathcal{H}_\text{light}
-
 $$
 
 $$
-
 T_\text{night}^\text{min} \;\leq\; T_\text{ambient}(h) \;\leq\; T_\text{night}^\text{max}, 
 \quad h \in \mathcal{H}_\text{dark}
-
 $$
 
 where $\mathcal{H}_\text{light}$ and $\mathcal{H}_\text{dark}$ are the sets of light and dark hours.
