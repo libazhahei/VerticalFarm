@@ -768,10 +768,11 @@ $$
 
 T_\text{day}^\text{min} \;\leq\; T_\text{eff}(h) \;\leq\; T_\text{day}^\text{max}, 
 \quad h \in \mathcal{H}_\text{light}
-\\
+
 $$
 
 $$
+
 T_\text{night}^\text{min} \;\leq\; T_\text{ambient}(h) \;\leq\; T_\text{night}^\text{max}, 
 \quad h \in \mathcal{H}_\text{dark}
 
