@@ -2,7 +2,7 @@
 
 > Thanks Zixi and his PCB Design.   [https://github.com/1-hexene/CropWaifu](https://github.com/1-hexene/CropWaifu)
 > 
-> With subsequent updates, the full project will be included, covering complete deployment, training, and runtime, with all code made visible [here]([https://github.com/libazhahei/VerticalFarm/tree/main](https://github.com/libazhahei/VerticalFarm/tree/adv_dev))
+> With subsequent updates, the full project will be included, covering complete deployment, training, and runtime, with all code made visible here. [https://github.com/libazhahei/VerticalFarm/tree/adv_dev](https://github.com/libazhahei/VerticalFarm/tree/adv_dev)
 
 # Introduction
 
