@@ -3,8 +3,11 @@ from abc import ABC, abstractmethod
 from collections import deque
 from collections.abc import Callable
 from datetime import date, datetime, timedelta
-from typing import Awaitable, Deque, Dict, List, Optional
-from zoneinfo import ZoneInfo
+from typing import Awaitable, Deque, Dict, List, Optional, Tuple
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo
 
 from aiorwlock import RWLock
 from numpy import average
@@ -102,7 +105,7 @@ class HeartbeatSubscriber(GenericSubscriber):
 
     """
 
-    alive_devices: list[tuple[int, float]]  # List of tuples (board_id, seq_no)
+    alive_devices: List[Tuple[int, float]]  # List of tuples (board_id, seq_no)
     lock: RWLock = RWLock()
 
     def __init__(self):
@@ -479,11 +482,11 @@ class MessageDispatcher:
     """
 
     def __init__(self) -> None:
-        self.subscribers : dict[type[MessageType], list[Callable]] = {}
+        self.subscribers : Dict[Type[MessageType], List[Callable]] = {}
         self.message_queue: asyncio.Queue = asyncio.Queue()
         self.running: bool = False
-        self.dispatch_task: asyncio.Task | None = None
-        self.processing_task: set[asyncio.Task]  = set()
+        self.dispatch_task: Optional[asyncio.Task] = None
+        self.processing_task: Set[asyncio.Task]  = set()
 
 
     def register_handler(self, msg_type: type[MessageType], subscriber_handle: Callable) -> None:

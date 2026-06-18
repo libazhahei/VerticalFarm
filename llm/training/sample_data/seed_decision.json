@@ -1,0 +1,18 @@
+{
+  "seed_id": "seed_decision_001",
+  "state_vector": {
+    "internal_temp": 24.2,
+    "external_temp": 19.5,
+    "internal_humidity": 72.0,
+    "external_humidity": 45.0,
+    "led_pwm": 0.70,
+    "fan_rpm": 1800,
+    "photoperiod_status": "Lights_ON",
+    "temp_trend_15min": "+1.8°C",
+    "humidity_trend_15min": "+2.0%"
+  },
+  "simulation_results": [
+    "SOLUTION_01: Temperature drops to 20.5°C within 15 min",
+    "SOLUTION_02: Temperature drops to 19.8°C within 15 min with DLI loss"
+  ]
+}

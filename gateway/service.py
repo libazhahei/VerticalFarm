@@ -3,9 +3,8 @@ import random
 import string
 import threading
 import traceback
-from collections.abc import Callable
 from datetime import datetime
-from typing import Any, List, Optional, Type
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type
 from bleak import BleakClient, BleakScanner
 from bleak.backends.characteristic import BleakGATTCharacteristic
 from bleak.backends.device import BLEDevice
@@ -100,9 +99,9 @@ class MqttClientWrapper:
         self.mqtt_client.on_message = self._on_message
         self.mqtt_broker_host = mqtt_broker_host
         self.mqtt_broker_port = mqtt_broker_port
-        self._mqtt_thread: threading.Thread | None = None
-        self._asyncio_loop: asyncio.AbstractEventLoop | None = None
-        self._topic_parsers: dict[str, Callable[[str], MQTTMessageType]] = {}
+        self._mqtt_thread: Optional[threading.Thread] = None
+        self._asyncio_loop: Optional[asyncio.AbstractEventLoop] = None
+        self._topic_parsers: Dict[str, Callable[[str], MQTTMessageType]] = {}
 
     def register_topic_handler(
         self, topic: str, parser_func: Callable[[str], MQTTMessageType]
@@ -566,13 +565,13 @@ class BLEClientWrapper:
 
     dispatcher: MessageDispatcher
     device_id_lists: set[int]
-    ble_clients: dict[int, BleakClient]
+    ble_clients: Dict[int, BleakClient]
     is_running: bool
-    ble_devices: dict[int, BLEDevice | None]
-    connection_tasks: dict[int, asyncio.Task]
+    ble_devices: Dict[int, Optional[BLEDevice]]
+    connection_tasks: Dict[int, asyncio.Task]
 
     def __init__(
-        self, device_id_lists: list[int], dispatcher: MessageDispatcher
+        self, device_id_lists: List[int], dispatcher: MessageDispatcher
     ) -> None:
         """
         Initializes the service with the provided device IDs and message dispatcher.
@@ -961,7 +960,7 @@ class BLEServiceContext:
         """
         return self.ble_client.is_connected()
 
-    def connected_devices(self) -> list[int]:
+    def connected_devices(self) -> List[int]:
         """
         Asynchronously retrieves a list of IDs for devices that are currently connected.
 
@@ -972,8 +971,8 @@ class BLEServiceContext:
         return list(self.ble_client.ble_devices.keys())
 
     async def fetch_data(
-        self, since: datetime, board_ids: list[int] | None
-    ) -> list[BoardData]:
+        self, since: datetime, board_ids: Optional[List[int]]
+    ) -> List[BoardData]:
         """
         Fetches all data since a timestamp, optionally filtered by board_ids.
 

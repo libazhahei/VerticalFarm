@@ -1,0 +1,19 @@
+[package]
+name = "vf-llama"
+version.workspace = true
+edition.workspace = true
+links = "llama"
+
+[features]
+default = []
+# Enable llama.cpp FFI (requires prebuilt libllama on the link path).
+llama = ["dep:libc"]
+# Link CUDA runtime libraries (Jetson / NVIDIA cross-builds).
+cuda = ["llama"]
+
+[dependencies]
+vf-core = { path = "../vf-core" }
+tracing.workspace = true
+libc = { version = "0.2", optional = true }
+
+[build-dependencies]

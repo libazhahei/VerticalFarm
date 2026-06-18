@@ -1,0 +1,26 @@
+{
+  "seed_id": "seed_side_effect_001",
+  "state_vector": {
+    "internal_temp": 25.0,
+    "external_temp": 20.0,
+    "internal_humidity": 68.0,
+    "external_humidity": 50.0,
+    "led_pwm": 0.60,
+    "fan_rpm": 1200,
+    "photoperiod_status": "Lights_ON",
+    "temp_trend_15min": "+2.0°C",
+    "humidity_trend_15min": "-1.0%"
+  },
+  "action_plan": {
+    "solution_id": "SOLUTION_01",
+    "description": "Aggressive fan increase for cooling",
+    "function_calls": [
+      {
+        "name": "predict_temp_change_with_fan_action",
+        "arguments": {"fan_speed_change": 75},
+        "simulating_time": "15 minutes"
+      }
+    ],
+    "confidence": 8
+  }
+}

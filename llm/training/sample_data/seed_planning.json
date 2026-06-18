@@ -1,0 +1,19 @@
+{
+  "seed_id": "seed_planning_001",
+  "state_vector": {
+    "internal_temp": 24.2,
+    "external_temp": 19.5,
+    "internal_humidity": 72.0,
+    "external_humidity": 45.0,
+    "led_pwm": 0.70,
+    "fan_rpm": 1800,
+    "photoperiod_status": "Lights_ON",
+    "temp_trend_15min": "+1.8°C",
+    "humidity_trend_15min": "+2.0%"
+  },
+  "prior_diagnosis": {
+    "core_issue": "Internal temperature at 24.2°C exceeds seedling upper bound of 21°C",
+    "states": ["High Temperature", "Rising Trend"],
+    "confidence": [9, 8]
+  }
+}

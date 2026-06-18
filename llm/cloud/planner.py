@@ -5,20 +5,23 @@ from math import e
 from typing import Any, Callable, Dict, Optional
 import json
 import uuid
-from zoneinfo import ZoneInfo
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    ZoneInfo = None  # type: ignore
 import aiorwlock
 from attr import dataclass
 from langchain_core.output_parsers import JsonOutputParser
 from data.tables import AIDailyStrategy
 from gateway.constants import TIMEZONE
-from llm.parser import OnlineResult, OverallTarget, LocalStrategies, CloudLLMOutput, fix_and_validate_json
+from llm.cloud.models import OnlineResult, OverallTarget, LocalStrategies, CloudLLMOutput, fix_and_validate_json
 from langchain_core.messages import BaseMessage
 # from llm.parser import OnlineResult
 
 # import openai
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
-from langchain_perplexity import ChatPerplexity
+from langchain_community.chat_models import ChatPerplexity
 from pydantic import SecretStr
 from langchain_core.messages import BaseMessage
 
@@ -335,9 +338,9 @@ class DailyPlanner:
         )
         chain_part2 = P2_prompt | task2_llm 
         p2_input = self._prepare_input(curr_status.to_dict(), p1_output)
-        from llm.parser import OverallTarget
+        from llm.cloud.models import OverallTarget
         response_2 = await chain_part2.ainvoke(p2_input)
-        response = self._parse_json(response_2, OnlineResult)
+        response = self._parse_json(response_2, OverallTarget)
         return OverallTarget.model_validate(response)
 
     async def _generate_strategy(self, curr_status: ChainPart1UserInput, p1_output) -> LocalStrategies:
@@ -454,7 +457,7 @@ class DailyPlanner:
         )
         chain_part3 = P3_prompt | task3_llm
         p3_input = self._prepare_input(curr_status.to_dict(), p1_output)
-        from llm.parser import LocalStrategies
+        from llm.cloud.models import LocalStrategies
         response_3 = chain_part3.invoke(p3_input)
         response = self._parse_json(response_3, LocalStrategies)
         return LocalStrategies.model_validate(response)
@@ -505,7 +508,7 @@ class CloudLLMCache:
         if id is not None:
             # Update existing record
             await AIDailyStrategy.filter(uuid=id).update(
-                strategy_date=datetime.now(tz=ZoneInfo(TIMEZONE)),
+                strategy_date=datetime.now(tz=ZoneInfo(TIMEZONE)) if ZoneInfo is not None else datetime.now(),
                 user_input=self._user_input.to_dict(),
                 online_content=plan.online.model_dump_json(),
                 overall_content=plan.overall.model_dump_json(),
@@ -515,7 +518,7 @@ class CloudLLMCache:
         else:
             id = uuid.uuid4().hex
             await AIDailyStrategy.create(
-                strategy_date=datetime.now(tz=ZoneInfo(TIMEZONE)),
+                strategy_date=datetime.now(tz=ZoneInfo(TIMEZONE)) if ZoneInfo is not None else datetime.now(),
                 user_input=self._user_input.to_dict(),
                 online_content=plan.online.model_dump_json(),
                 overall_content=plan.overall.model_dump_json(),

@@ -1,13 +1,14 @@
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta
-from typing import Awaitable, Optional
 import asyncio
+from datetime import timedelta
+from typing import Optional
 
-# from llm.cloud import ChainPart1UserInput, CloudLLMCache, DailyPlanner
-# from llm.local import LocalLLMCache, LocalLLMInput, LocalPlanner
+from llm.cloud import ChainPart1UserInput, CloudLLMCache, DailyPlanner
+from llm.models.input import LocalLLMInput
+from llm.workflow import LocalWorkflow
+
 
 class BaseLLMManager(ABC):
-    
     refresh_interval: timedelta
     is_running: bool
     _task: Optional[asyncio.Task] = None
@@ -39,7 +40,6 @@ class BaseLLMManager(ABC):
         else:
             print(f"[{self.__class__.__name__}] Not running.")
 
-
     @abstractmethod
     async def generate_plan(self, *args, **kwargs) -> object:
         pass
@@ -51,19 +51,15 @@ class BaseLLMManager(ABC):
                     await self.generate_plan()
                     await asyncio.wait_for(
                         self._manual_refresh_event.wait(),
-                        timeout=self.refresh_interval.total_seconds()
+                        timeout=self.refresh_interval.total_seconds(),
                     )
                 except asyncio.TimeoutError:
                     pass
                 self._manual_refresh_event.clear()
-            except Exception as e:
-                print(f"[{self.__class__.__name__}] Error during refresh: {e}")
-
+            except Exception as error:
+                print(f"[{self.__class__.__name__}] Error during refresh: {error}")
 
     async def manual_refresh(self) -> None:
-        """
-        Manually trigger a refresh of the LLM cache and planner.
-        """
         if self.is_running:
             await self.generate_plan()
             self._manual_refresh_event.set()
@@ -71,12 +67,12 @@ class BaseLLMManager(ABC):
             print(f"[{self.__class__.__name__}] Cannot refresh, not running.")
 
 
-
 class CloudLLMManager(BaseLLMManager):
     cache: CloudLLMCache
     planner: DailyPlanner
     _user_input: Optional[ChainPart1UserInput] = None
     _demo: bool = True
+
     def __init__(self, openai_key: str, preplexity_key: str, refresh_interval: timedelta, demo: bool = True) -> None:
         super().__init__(refresh_interval)
         self.cache = CloudLLMCache()
@@ -84,35 +80,26 @@ class CloudLLMManager(BaseLLMManager):
         self._demo = demo
 
     def set_user_input(self, user_input: ChainPart1UserInput) -> None:
-        """
-        Set the user input for the LLM manager.
-        """
         self._user_input = user_input
 
     async def generate_plan(self) -> object:
         if self._user_input:
             await self.cache.refresh_plan(self.planner, self._user_input, self._demo)
+        return None
+
 
 class LocalLLMManager(BaseLLMManager):
-    cache: LocalLLMCache
-    planner: LocalPlanner
+    workflow: LocalWorkflow
     current_input: Optional[LocalLLMInput] = None
-    def __init__(self, refresh_interval: timedelta, planner: LocalPlanner) -> None:
+
+    def __init__(self, refresh_interval: timedelta, workflow: LocalWorkflow) -> None:
         super().__init__(refresh_interval)
-        self.cache = LocalLLMCache.get_instance()
-        self.planner = planner
+        self.workflow = workflow
 
     def set_user_input(self, user_input: LocalLLMInput) -> None:
-        """
-        Set the user input for the local LLM manager.
-        """
         self.current_input = user_input
 
     async def generate_plan(self) -> object:
-        if self.current_input:
-            await self.cache.refresh_plan(self.current_input)
-        else:
+        if self.current_input is None:
             raise ValueError("User input must be set before generating a plan.")
-    
-
-
+        return self.workflow.execute(self.current_input)

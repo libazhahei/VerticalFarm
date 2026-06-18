@@ -6,7 +6,18 @@ from typing import Any
 from control.model import ChangeModel, TemperatureModel
 from gateway.msg import ControlMsg, Mode
 from gateway.service import MQTTServiceContext
-from gateway.subscriber import CommonDataRetriver # For remaining_light_period example
+from gateway.subscriber import CommonDataRetriver
+
+_prediction_board_id: int = 0
+
+
+def set_prediction_board_id(board_id: int) -> None:
+    global _prediction_board_id
+    _prediction_board_id = board_id
+
+
+def get_prediction_board_id() -> int:
+    return _prediction_board_id
 
 class FunctionCallHandler:
     def __init__(self, function_definitions_json: str):
@@ -150,7 +161,7 @@ class FunctionExecutor:
 
 async def _predict_temp_change_with_led_action(led_brightness_change: float, time: timedelta = timedelta(minutes=15)) -> str:
     model = TemperatureModel()
-    retriver = CommonDataRetriver.get_instance(2)
+    retriver = CommonDataRetriver.get_instance(get_prediction_board_id())
     latest_temp = retriver.latest_temperature
     led = min((retriver.latest_led + led_brightness_change) / 255.0, 1)
     result = model.evaluate(led, latest_temp, time.total_seconds())
@@ -159,7 +170,7 @@ async def _predict_temp_change_with_led_action(led_brightness_change: float, tim
 
 async def _predict_temp_change_with_fan_action(fan_speed_change: float, time: timedelta = timedelta(minutes=15)) -> str:
     model = TemperatureModel()
-    retriver = CommonDataRetriver.get_instance(2)
+    retriver = CommonDataRetriver.get_instance(get_prediction_board_id())
     latest_temp = retriver.latest_temperature
     fan = min((retriver.latest_fan + fan_speed_change) / 255.0, 1)
     result = model.evaluate(fan, latest_temp, time.total_seconds())
@@ -168,7 +179,7 @@ async def _predict_temp_change_with_fan_action(fan_speed_change: float, time: ti
 
 async def _predict_temp_change_with_action(fan_speed_change: float, led_brightness_change: float, time: timedelta = timedelta(minutes=15)) -> str:
     mode = ChangeModel()
-    retriver = CommonDataRetriver.get_instance(2)
+    retriver = CommonDataRetriver.get_instance(get_prediction_board_id())
     latest_temp = retriver.latest_temperature
     fan = min((retriver.latest_fan + fan_speed_change) / 255.0, 1)
     led = min((retriver.latest_led + led_brightness_change) / 255.0, 1)
@@ -237,10 +248,15 @@ def parse_time_string(time_str: str) -> timedelta:
 
 
 class FunctionCallService:
-    service : "FunctionCallService" 
+    service : "FunctionCallService"
     function_call_handler: FunctionCallHandler
     function_executor: FunctionExecutor
-    mqtt_service_context: MQTTServiceContext
+    mqtt_service_context: MQTTServiceContext | None = None
+    current_board_id: int = 0
+
+    def set_board_context(self, board_id: int) -> None:
+        self.current_board_id = board_id
+        set_prediction_board_id(board_id)
 
     @classmethod
     def initialize(cls, mqtt_service_context: MQTTServiceContext) -> None:
@@ -282,9 +298,11 @@ class FunctionCallService:
             ValueError: If validation fails or if the function is not registered.
         """
         if not function_name.startswith("set_"):
-            return self.function_executor.execute_call(function_name, time=time, **kwargs)
+            return await self.function_executor.execute_call(function_name, time=time, **kwargs)
         else:
             msg = await self.function_executor.execute_call(function_name, **kwargs)
+            if self.mqtt_service_context is None:
+                return f"Mock publish control command: {msg}"
             prev_msg = await self.mqtt_service_context.get_current_command()
             if msg is None or prev_msg is None:
                 return "Keep current command"  # No action needed, just return True

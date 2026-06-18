@@ -6,7 +6,10 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Optional
 from unittest.mock import AsyncMock, MagicMock
-from zoneinfo import ZoneInfo
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo
 
 from bleak.backends.characteristic import BleakGATTCharacteristic
 

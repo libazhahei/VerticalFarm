@@ -1,0 +1,9 @@
+[package]
+name = "vf-mock"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+vf-core = { path = "../vf-core" }
+serde_json.workspace = true
+tracing.workspace = true

@@ -1,6 +1,6 @@
 import asyncio
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from typing import Awaitable, Callable, Dict, Optional
 
 from paho.mqtt.client import MQTT_ERR_SUCCESS, Client as MQTTClient
 
@@ -46,7 +46,7 @@ class QueueMessage:
             retries_left=data["retries_left"]
         )
 
-    def get_message_id(self) -> int | None:
+    def get_message_id(self) -> Optional[int]:
         """Returns the message ID from the payload."""
         return self.payload.get_message_id() if self.payload else None
 
@@ -86,7 +86,7 @@ class ControlCommandPublisher:
     mqtt_client: MQTTClient
     max_retries: int
     timeout: float
-    msgs: dict[int, QueueMessage]
+    msgs: Dict[int, QueueMessage]
 
     def __init__(self, mqtt_client: MQTTClient, is_alive_func: Callable[[int], Awaitable[bool]], 
                  max_retries: int = PUBLISH_RESENT_MAX_RETRIES, timeout: float = PUBLISH_TIMEOUT_SECONDS) -> None:

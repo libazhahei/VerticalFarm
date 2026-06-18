@@ -228,3 +228,11 @@ __marimo__/
 # Local environment variables
 .env
 .env.local
+
+# Rust inference server build artifacts
+/inference/server/target/
+/inference/models.json
+
+fixtures
+llm/training/training_config.json
+data/training_15x5

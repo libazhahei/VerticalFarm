@@ -1,0 +1,26 @@
+{
+  "seed_id": "seed_final_command_001",
+  "state_vector": {
+    "internal_temp": 24.2,
+    "external_temp": 19.5,
+    "internal_humidity": 72.0,
+    "external_humidity": 45.0,
+    "led_pwm": 0.70,
+    "fan_rpm": 1800,
+    "photoperiod_status": "Lights_ON",
+    "temp_trend_15min": "+1.8°C",
+    "humidity_trend_15min": "+2.0%"
+  },
+  "selected_plan": {
+    "solution_id": "SOLUTION_01",
+    "description": "Reduce LED to 40% and increase fan to 2800 RPM",
+    "function_calls": [
+      {
+        "name": "predict_temp_change_with_action",
+        "arguments": {"led_brightness_change": 40, "fan_speed_change": 2800},
+        "simulating_time": "15 minutes"
+      }
+    ],
+    "confidence": 9
+  }
+}

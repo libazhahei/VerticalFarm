@@ -1,0 +1,24 @@
+[package]
+name = "vf-server"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "vf-server"
+path = "src/main.rs"
+
+[features]
+default = ["mock"]
+mock = ["dep:vf-mock"]
+llama = ["dep:vf-llama", "vf-llama/llama"]
+
+[dependencies]
+vf-core = { path = "../vf-core" }
+vf-mock = { path = "../vf-mock", optional = true }
+vf-llama = { path = "../vf-llama", optional = true }
+tokio = { version = "1", features = ["full"] }
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+clap = { version = "4", features = ["derive", "env"] }

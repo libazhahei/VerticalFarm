@@ -1,0 +1,198 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "VerticalFarm Inference TCP Protocol",
+  "description": "Length-prefixed JSON messages over TCP (4-byte big-endian length + UTF-8 body)",
+  "definitions": {
+    "prompt_segments": {
+      "type": "object",
+      "required": ["static_prefix", "instruction", "sensor_state"],
+      "properties": {
+        "static_prefix": { "type": "string" },
+        "instruction": { "type": "string" },
+        "sensor_state": { "type": "string" }
+      }
+    },
+    "state_signature": {
+      "type": "object",
+      "required": [
+        "internal_temp_bucket",
+        "external_temp_bucket",
+        "humidity_bucket",
+        "photoperiod",
+        "temp_trend_sign",
+        "temp_trend_magnitude",
+        "crop",
+        "growth_stage"
+      ],
+      "properties": {
+        "internal_temp_bucket": { "type": "string" },
+        "external_temp_bucket": { "type": "string" },
+        "humidity_bucket": { "type": "string" },
+        "photoperiod": { "type": "string", "enum": ["ON", "OFF"] },
+        "temp_trend_sign": { "type": "string", "enum": ["+", "-", "0"] },
+        "temp_trend_magnitude": { "type": "string", "enum": ["lo", "mid", "hi"] },
+        "crop": { "type": "string" },
+        "growth_stage": { "type": "string" },
+        "temp_trend_c_per_15min": { "type": "number" }
+      }
+    },
+    "infer_metrics": {
+      "type": "object",
+      "properties": {
+        "prefill_ms": { "type": "integer", "minimum": 0 },
+        "decode_ms": { "type": "integer", "minimum": 0 },
+        "prefill_tokens": { "type": "integer", "minimum": 0 },
+        "decode_tokens": { "type": "integer", "minimum": 0 }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "type": "object",
+      "required": ["type", "client_id", "timestamp"],
+      "properties": {
+        "type": { "const": "heartbeat" },
+        "client_id": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["type", "server_uptime_ms", "model_ready"],
+      "properties": {
+        "type": { "const": "heartbeat_ack" },
+        "server_uptime_ms": { "type": "integer", "minimum": 0 },
+        "model_ready": { "type": "boolean" },
+        "active_model": { "type": "string" },
+        "loaded_models": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "available_models": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "type",
+        "request_id",
+        "cycle_id",
+        "stage",
+        "model_name",
+        "prompt",
+        "state_signature"
+      ],
+      "properties": {
+        "type": { "const": "infer" },
+        "request_id": { "type": "string" },
+        "cycle_id": { "type": "string" },
+        "stage": {
+          "type": "string",
+          "enum": [
+            "diagnosis",
+            "diagnosis_rethink",
+            "diagnosis_assessment",
+            "action_plan",
+            "action_assessment",
+            "side_effects",
+            "decision",
+            "final_command"
+          ]
+        },
+        "model_name": { "type": "string" },
+        "prompt": { "$ref": "#/definitions/prompt_segments" },
+        "state_signature": { "$ref": "#/definitions/state_signature" },
+        "max_tokens": { "type": "integer", "minimum": 1, "default": 256 },
+        "temperature": { "type": "number", "minimum": 0, "maximum": 2, "default": 0.2 },
+        "invalidate_reason": { "type": "string" },
+        "allow_model_fallback": { "type": "boolean", "default": true },
+        "preload_models": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Models to preload before infer (e.g. next workflow stage)"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["type", "request_id", "cache_hit", "output"],
+      "properties": {
+        "type": { "const": "infer_response" },
+        "request_id": { "type": "string" },
+        "cache_hit": { "type": "boolean" },
+        "output": { "type": "string" },
+        "metrics": { "$ref": "#/definitions/infer_metrics" },
+        "model_used": { "type": "string" },
+        "model_fallback": { "type": "boolean", "default": false },
+        "oom_recovered": { "type": "boolean", "default": false }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["type", "models"],
+      "properties": {
+        "type": { "const": "preload" },
+        "models": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["type", "loaded_models"],
+      "properties": {
+        "type": { "const": "preload_ack" },
+        "loaded_models": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["type", "reason"],
+      "properties": {
+        "type": { "const": "flush_cache" },
+        "reason": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["type", "entries_cleared"],
+      "properties": {
+        "type": { "const": "flush_cache_ack" },
+        "entries_cleared": { "type": "integer", "minimum": 0 }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["type", "cycle_id"],
+      "properties": {
+        "type": { "const": "cycle_end" },
+        "cycle_id": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["type", "cycle_id"],
+      "properties": {
+        "type": { "const": "cycle_end_ack" },
+        "cycle_id": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["type", "code", "message"],
+      "properties": {
+        "type": { "const": "error" },
+        "code": { "type": "string" },
+        "message": { "type": "string" },
+        "request_id": { "type": "string" }
+      }
+    }
+  ]
+}

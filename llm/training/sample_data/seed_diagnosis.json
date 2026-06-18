@@ -1,0 +1,23 @@
+{
+  "seed_id": "seed_diagnosis_001",
+  "state_vector": {
+    "internal_temp": 24.2,
+    "external_temp": 19.5,
+    "internal_humidity": 72.0,
+    "external_humidity": 45.0,
+    "led_pwm": 0.70,
+    "fan_rpm": 1800,
+    "photoperiod_status": "Lights_ON",
+    "temp_trend_15min": "+1.8°C",
+    "humidity_trend_15min": "+2.0%"
+  },
+  "operator_action": {"new_led_pwm": 0.40, "new_fan_rpm": 2800},
+  "operator_rationale": "Temperature creeping up toward 22°C with Lights ON; increased fan to 60% preemptively",
+  "crop_context": {
+    "crop": "iceberg_lettuce",
+    "growth_stage": "seedling",
+    "ideal_temp_range": [15.0, 21.0],
+    "ideal_humidity_range": [50.0, 70.0],
+    "dli_target": 12.0
+  }
+}

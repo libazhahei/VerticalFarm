@@ -1,6 +1,9 @@
 import datetime
 from enum import Enum
-from zoneinfo import ZoneInfo
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo
 
 from fastapi.routing import APIRouter
 from pydantic import BaseModel

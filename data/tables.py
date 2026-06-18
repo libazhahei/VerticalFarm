@@ -2,8 +2,11 @@ import asyncio
 import os
 import sqlite3
 from datetime import datetime
-from typing import Optional
-from zoneinfo import ZoneInfo
+from typing import Dict, List, Optional, Set
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo
 
 from aiorwlock import RWLock
 from tortoise import fields
@@ -82,7 +85,7 @@ class AIDailyStrategy(Model):
 
 
 global db_writer
-db_writer: Optional['BoardDataBatchWriter'] = None 
+db_writer: Optional['BoardDataBatchWriter'] = None
 
 class BoardDataBatchWriter:
     """
@@ -91,13 +94,13 @@ class BoardDataBatchWriter:
     """
 
     batch_size: int
-    buffer: list[BoardData]
+    buffer: List[BoardData]
     timeout: float
     lock: RWLock
-    _flush_worker: asyncio.Task | None
+    _flush_worker: Optional[asyncio.Task]
     _stop_event: asyncio.Event
-    boards_ids: set[int]
-    latest_data: dict[int, BoardData] = {}
+    boards_ids: Set[int]
+    latest_data: Dict[int, BoardData] = {}
 
     def __init__(self, batch_size: int = BATCH_SIZE, timeout: int = BATCH_TIMEOUT_MS) -> None:
         """
@@ -117,10 +120,10 @@ class BoardDataBatchWriter:
 
         """
         self.batch_size = batch_size
-        self.buffer: list[BoardData] = []
+        self.buffer: List[BoardData] = []
         self.timeout = timeout / 1000  # milliseconds to seconds
         self.lock = RWLock()
-        self._flush_worker: asyncio.Task | None = None
+        self._flush_worker: Optional[asyncio.Task] = None
         self._stop_event = asyncio.Event()
         self.boards_ids = set()
         self.latest_data = {}
@@ -295,7 +298,7 @@ class BoardDataBatchWriter:
         except Exception as e:
             print(f"Flush failed: {e}")
 
-    async def fetch(self) -> list[BoardData]:
+    async def fetch(self) -> List[BoardData]:
         """
         Asynchronously fetches the current data stored in the buffer.
 
@@ -324,7 +327,7 @@ class BoardDataBatchWriter:
             self.buffer.clear()
             self.latest_data.clear()
 
-    async def fetch_latest(self, board_ids: list[int] | None) -> list[BoardData]:
+    async def fetch_latest(self, board_ids: Optional[List[int]]) -> List[BoardData]:
         """
         Fetches the latest BoardData for a specific board ID.
 
@@ -345,7 +348,7 @@ class BoardDataBatchWriter:
         return latest_data if latest_data else []
 
 
-    async def fetch_since(self, since: datetime, board_ids: list[int] | None) -> list[BoardData]:
+    async def fetch_since(self, since: datetime, board_ids: Optional[List[int]]) -> List[BoardData]:
         """
         Fetches data from the buffer since a specified timestamp for given board IDs.
 
