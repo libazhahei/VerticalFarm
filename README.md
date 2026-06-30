@@ -1,3 +1,10 @@
+| 📖 Documentation / 文档 |  |
+|:---|:---|
+| **English** | [README.md](README.md) |
+| **中文 (Chinese)** | [README_zh.md](README_zh.md) |
+
+---
+
 # Edge LLM Project Report
 
 > Thanks Zixi and his PCB Design.   [https://github.com/1-hexene/CropWaifu](https://github.com/1-hexene/CropWaifu)
