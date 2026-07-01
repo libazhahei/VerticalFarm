@@ -442,11 +442,11 @@ We evaluated four open-source base models as SFT candidates:
 
 | Model               | Parameters | Base JSON Compliance (pre-SFT) | Selection Rationale                                              |
 | :------------------ | :--------- | :----------------------------- | :--------------------------------------------------------------- |
-| Qwen2.5-4B-Instruct | 4B         | 73.2%                          | Best JSON/function-calling baseline; strong multilingual support |
+| Qwen3-4B-Instruct | 4B         | 73.2%                          | Best JSON/function-calling baseline; strong multilingual support |
 | Gemma-3-4B          | 4B         | 68.5%                          | Competitive but slightly lower JSON reliability                  |
 | Llama-3.2-3B        | 3B         | 61.8%                          | Weaker structured output; smaller capacity                       |
 
-**Qwen2.5-4B-Instruct** was selected based on its superior out-of-the-box JSON schema compliance (73.2%) and Function Calling accuracy (70.5%). Its 4B parameter count represents the sweet spot between reasoning capacity and edge deployability after INT4 quantization (VRAM: \~2.5–3 GB).
+**Qwen3-4B-Instruct** was selected based on its superior out-of-the-box JSON schema compliance (73.2%) and Function Calling accuracy (70.5%). Its 4B parameter count represents the sweet spot between reasoning capacity and edge deployability after INT4 quantization (VRAM: \~2.5–3 GB).
 
 #### LoRA Configuration
 
@@ -648,7 +648,7 @@ The following table presents the cumulative impact of each post-training stage, 
 
 | Stage                                    | JSON Schema Compliance  | Tool Call Success  | Safety Preference  | Physical Contradiction Rate | Fallback Trigger Rate | Illegal Dispatch Rate |
 | :--------------------------------------- | :----------------------- | :------------------ | :------------------ | :---------------------------- | :---------------------- | :---------------------- |
-| Base Model (Qwen2.5-4B)                  | 73.2%                    | 70.5%               | 61.4%               | 13.8%                         | 18.5%                   | 12.3%                   |
+| Base Model (Qwen3-4B)                  | 73.2%                    | 70.5%               | 61.4%               | 13.8%                         | 18.5%                   | 12.3%                   |
 | + SFT (4.8k samples)                     | 95.1%                    | 90.3%               | 75.2%               | 5.8%                          | 6.2%                    | 3.1%                    |
 | + DPO (1.8k pairs)                       | **99.5%**                | **95.9%**           | **88.7%**           | **2.1%**                      | **2.5%**                | **0.9%**                |
 | + Q4\_K\_M Quantization                  | 97.2%                    | 92.1%               | 85.3%               | 3.5%                          | 4.1%                    | 2.2%                    |
@@ -1210,7 +1210,7 @@ Startup Preloading
 On Jetson boot, the Rust runtime eagerly loads the Q4_K_M GGUF model into unified memory. This preloading avoids a 3–5 second cold-start penalty on the first agent cycle:
 
 ```Plaintext
-[INFO] Loading GGUF model: /opt/models/qwen2.5-4b-agent-q4km.gguf
+[INFO] Loading GGUF model: /opt/models/qwen3-4b-agent-q4km.gguf
 [INFO] Model VRAM: 2.68 GB | Context size: 4096 tokens
 [INFO] Context initialization: 142 ms
 [INFO] Warmup decode (dummy prompt): 1.2s — model ready
