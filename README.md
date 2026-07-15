@@ -486,7 +486,7 @@ The `k_proj` layer was excluded to reduce trainable parameter count and training
 | Warmup ratio          | 0.03                      |
 | Effective batch size  | 16                        |
 | Micro batch size      | 2 per GPU                 |
-| Gradient accumulation | 4                         |
+| Gradient accumulation | 8                         |
 | Epochs                | 3                         |
 | Optimizer             | AdamW                     |
 | β₁                    | 0.9                       |
@@ -568,7 +568,7 @@ We apply QLoRA to both policy and reference training setup, with a frozen 4-bit 
 | -------------------- | ----------------------------------------------------------------- | ------------------------------------------------------ |
 | Base model precision | NF4 4-bit                                                         | Memory-efficient inference/training                    |
 | LoRA rank (r)        | 16                                                                | Reduced capacity to avoid overfitting preference noise |
-| LoRA alpha (α)       | 16                                                                | Stabilized update magnitude under low-rank regime      |
+| LoRA alpha (α)       | 32                                                                | Stabilized update magnitude under low-rank regime      |
 | LoRA dropout         | 0.05                                                              | Regularization against preference overfitting          |
 | Target modules       | `q_proj`, `v_proj`, `o_proj`, `gate_proj`, `up_proj`, `down_proj` | Balanced attention + MLP adaptation                    |
 | Learning rate        | 3e-5                                                              | Lower than SFT for stable preference optimization      |
